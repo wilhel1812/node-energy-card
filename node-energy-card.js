@@ -2,18 +2,18 @@ class NodeEnergySetupCard extends HTMLElement {
   static getStubConfig(hass) {
     const entity = pickDefaultEntity(hass);
     return {
-      title: 'Node Energy Setup',
+      title: 'Battery Telemetry Setup',
       entity,
     };
   }
 
   static getConfigElement() {
-    return document.createElement('node-energy-setup-card-editor');
+    return document.createElement('battery-telemetry-setup-card-editor');
   }
 
   setConfig(config) {
     this._config = {
-      title: 'Node Energy Setup',
+      title: 'Battery Telemetry Setup',
       entity: '',
       ...config,
     };
@@ -44,14 +44,14 @@ class NodeEnergySetupCard extends HTMLElement {
     this._selectedEntity = current;
 
     const hint = valid.length
-      ? 'Choose your Node Energy sensor and copy ready-to-paste dashboard YAML.'
-      : 'No valid Node Energy sensors found yet. Configure the integration first.';
+      ? 'Choose your Battery Telemetry sensor and copy ready-to-paste dashboard YAML.'
+      : 'No valid Battery Telemetry sensors found yet. Configure the integration first.';
 
     this.innerHTML = `
-      <ha-card header="${escapeHtml(this._config.title || 'Node Energy Setup')}">
+      <ha-card header="${escapeHtml(this._config.title || 'Battery Telemetry Setup')}">
         <div class="card-content root">
           <p class="hint">${escapeHtml(hint)}</p>
-          <label class="field-label" for="entity-select">Node Energy sensor</label>
+          <label class="field-label" for="entity-select">Battery Telemetry sensor</label>
           <select id="entity-select" class="entity-select" ${valid.length ? '' : 'disabled'}>
             ${valid.map((eid) => `<option value="${escapeHtml(eid)}" ${eid === current ? 'selected' : ''}>${escapeHtml(eid)}</option>`).join('')}
           </select>
@@ -149,7 +149,7 @@ class NodeEnergySetupCard extends HTMLElement {
 class NodeEnergySetupCardEditor extends HTMLElement {
   setConfig(config) {
     this._config = {
-      title: 'Node Energy Setup',
+      title: 'Battery Telemetry Setup',
       entity: '',
       ...config,
     };
@@ -175,8 +175,8 @@ class NodeEnergySetupCardEditor extends HTMLElement {
     this.innerHTML = `
       <div class="editor">
         <label>Title</label>
-        <input id="title" type="text" value="${escapeHtml(this._config.title || 'Node Energy Setup')}" />
-        <label>Default Node Energy sensor</label>
+        <input id="title" type="text" value="${escapeHtml(this._config.title || 'Battery Telemetry Setup')}" />
+        <label>Default Battery Telemetry sensor</label>
         <select id="entity">
           ${valid.map((eid) => `<option value="${escapeHtml(eid)}" ${eid === this._config.entity ? 'selected' : ''}>${escapeHtml(eid)}</option>`).join('')}
         </select>
@@ -271,7 +271,7 @@ function escapeHtml(v) {
 }
 
 function buildDashboardYaml(entity) {
-  return `title: Node Energy
+  return `title: Battery Telemetry
 views:
   - title: Overview
     path: overview
@@ -280,7 +280,7 @@ views:
       - type: custom:apexcharts-card
         header:
           show: true
-          title: Node Energy
+          title: Battery Telemetry
         update_interval: 5min
         now:
           show: true
@@ -360,6 +360,12 @@ views:
 `;
 }
 
+if (!customElements.get('battery-telemetry-setup-card')) {
+  customElements.define('battery-telemetry-setup-card', NodeEnergySetupCard);
+}
+if (!customElements.get('battery-telemetry-setup-card-editor')) {
+  customElements.define('battery-telemetry-setup-card-editor', NodeEnergySetupCardEditor);
+}
 if (!customElements.get('node-energy-setup-card')) {
   customElements.define('node-energy-setup-card', NodeEnergySetupCard);
 }
@@ -369,8 +375,8 @@ if (!customElements.get('node-energy-setup-card-editor')) {
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: 'node-energy-setup-card',
-  name: 'Node Energy Setup',
+  type: 'battery-telemetry-setup-card',
+  name: 'Battery Telemetry Setup',
   preview: true,
-  description: 'UI helper that copies ready-to-paste dashboard YAML for Node Energy + ApexCharts.',
+  description: 'UI helper that copies ready-to-paste dashboard YAML for Battery Telemetry Forecast + ApexCharts.',
 });
