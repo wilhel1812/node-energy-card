@@ -83,19 +83,32 @@ class BatteryTelemetryCard extends HTMLElement {
 
     if (wrap.children.length === 0 || !this._inner) {
       wrap.innerHTML = '';
-      this._inner = document.createElement('hui-element');
+      this._inner = document.createElement('div');
       wrap.appendChild(this._inner);
     }
   }
 
-  _syncInnerConfig() {
+  async _syncInnerConfig() {
     if (!this._hass || !this._config || !this._inner) return;
     const valid = getValidEntities(this._hass);
     if (!valid.includes(this._config.entity)) return;
 
     const innerConfig = buildApexCardConfig(this._config);
     try {
-      this._inner.setConfig(innerConfig);
+      const canReconfigure = typeof this._inner.setConfig === 'function';
+      if (canReconfigure) {
+        this._inner.setConfig(innerConfig);
+      } else {
+        const replacement = await createCardElement(this._hass, innerConfig);
+        const wrap = this.shadowRoot?.querySelector('#wrap');
+        if (!wrap) return;
+        if (this._inner && this._inner.parentElement === wrap) {
+          wrap.replaceChild(replacement, this._inner);
+        } else {
+          wrap.appendChild(replacement);
+        }
+        this._inner = replacement;
+      }
       this._inner.hass = this._hass;
     } catch (err) {
       const wrap = this.shadowRoot?.querySelector('#wrap');
@@ -336,6 +349,22 @@ function buildApexCardConfig(cfg) {
     },
     series,
   };
+}
+
+async function createCardElement(hass, config) {
+  if (hass?.helpers?.createCardElement) {
+    return hass.helpers.createCardElement(config);
+  }
+  if (window.loadCardHelpers) {
+    const helpers = await window.loadCardHelpers();
+    return helpers.createCardElement(config);
+  }
+  const fallback = document.createElement('apexcharts-card');
+  if (typeof fallback.setConfig !== 'function') {
+    throw new Error('ApexCharts card not loaded. Install/refresh ApexCharts card.');
+  }
+  fallback.setConfig(config);
+  return fallback;
 }
 
 function getValidEntities(hass) {
