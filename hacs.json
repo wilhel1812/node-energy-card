@@ -1,0 +1,7 @@
+{
+  "name": "Node Energy Card",
+  "filename": "node-energy-card.js",
+  "render_readme": true,
+  "content_in_root": true,
+  "homeassistant": "2024.6.0"
+}
