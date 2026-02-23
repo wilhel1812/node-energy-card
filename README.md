@@ -1,20 +1,12 @@
-# Node Energy Card (HACS Plugin)
+# Node Energy Card (Deprecated)
 
-Custom Lovelace card for the Node Energy integration.
+This repository is deprecated.
 
-## HACS Install
-1. HACS -> 3 dots -> Custom repositories
-2. Add this repository URL
-3. Category: `Dashboard`
-4. Install `Node Energy Card`
-5. Add resource if HACS does not auto-add:
-   - URL: `/hacsfiles/node-energy-card.js`
-   - Type: `module`
+Use the Home Assistant integration repository with ApexCharts instead:
+- https://github.com/wilhel1812/node-energy-ha
 
-## Card
-```yaml
-type: custom:node-energy-card
-entity: sensor.node_energy
-cells: 2
-days: 7
-```
+## Migration
+1. Keep `Node Energy` integration installed from HACS.
+2. Install `ApexCharts Card` from HACS Frontend.
+3. Replace `custom:node-energy-card` with the ApexCharts YAML example in:
+   - https://github.com/wilhel1812/node-energy-ha#apexcharts-setup
