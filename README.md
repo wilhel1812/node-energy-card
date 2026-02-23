@@ -1,28 +1,28 @@
-# Battery Telemetry Setup Card
+# Battery Telemetry Card
 
-UI helper card for Home Assistant that generates and copies ready-to-paste ApexCharts dashboard YAML for Battery Telemetry Forecast.
-
-No visible code block: users select entity and click a large copy button.
+Native custom chart card for Home Assistant that renders battery telemetry history + forecast from `sensor.*.attributes.apex_series`.
 
 ## Install (HACS)
 1. HACS -> Custom repositories
 2. Add this repo as category `Dashboard`
-3. Install `Battery Telemetry Setup Card`
+3. Install `Battery Telemetry Card`
 4. Ensure `ApexCharts Card` is also installed from HACS Frontend
 
 ## Use
 Add card:
 
 ```yaml
-type: custom:battery-telemetry-setup-card
-title: Battery Telemetry Setup
+type: custom:battery-telemetry-card
 ```
 
-Backward-compatible alias still works: `custom:node-energy-setup-card`.
-
-In UI:
+Configure in UI editor:
 1. Pick your Battery Telemetry sensor (dropdown is filtered to valid entities only).
-2. Click `Copy Dashboard Config`.
-3. Paste in Dashboard -> Edit -> Raw configuration editor.
+2. Toggle which groups to show (power/sun/clear-sky).
+3. Save. No raw YAML templates required.
+
+Backward-compatible aliases still work:
+- `custom:node-energy-card`
+- `custom:battery-telemetry-setup-card`
+- `custom:node-energy-setup-card`
 
 This project is independent and not affiliated with Meshtastic.

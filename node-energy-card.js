@@ -1,156 +1,119 @@
-class NodeEnergySetupCard extends HTMLElement {
+class BatteryTelemetryCard extends HTMLElement {
   static getStubConfig(hass) {
-    const entity = pickDefaultEntity(hass);
     return {
-      title: 'Battery Telemetry Setup',
-      entity,
+      entity: pickDefaultEntity(hass),
+      title: 'Battery Telemetry',
+      show_power: true,
+      show_sun: true,
+      show_clear: true,
     };
   }
 
   static getConfigElement() {
-    return document.createElement('battery-telemetry-setup-card-editor');
+    return document.createElement('battery-telemetry-card-editor');
   }
 
   setConfig(config) {
     this._config = {
-      title: 'Battery Telemetry Setup',
       entity: '',
+      title: 'Battery Telemetry',
+      show_power: true,
+      show_sun: true,
+      show_clear: true,
       ...config,
     };
-    this._selectedEntity = this._config.entity || '';
-    this._render();
+    this._ensureRoot();
+    this._renderState();
+    this._syncInnerConfig();
   }
 
   set hass(hass) {
     this._hass = hass;
-    const valid = getValidEntities(hass);
-    if (!this._selectedEntity || !valid.includes(this._selectedEntity)) {
-      this._selectedEntity = this._config?.entity && valid.includes(this._config.entity)
-        ? this._config.entity
-        : (valid[0] || '');
+    this._ensureRoot();
+    this._renderState();
+    this._syncInnerConfig();
+    if (this._inner) {
+      this._inner.hass = hass;
     }
-    this._render();
   }
 
   getCardSize() {
-    return 5;
+    return 10;
   }
 
-  _render() {
-    if (!this._config || !this._hass) return;
-
-    const valid = getValidEntities(this._hass);
-    const current = valid.includes(this._selectedEntity) ? this._selectedEntity : (valid[0] || '');
-    this._selectedEntity = current;
-
-    const hint = valid.length
-      ? 'Choose your Battery Telemetry sensor and copy ready-to-paste dashboard YAML.'
-      : 'No valid Battery Telemetry sensors found yet. Configure the integration first.';
-
-    this.innerHTML = `
-      <ha-card header="${escapeHtml(this._config.title || 'Battery Telemetry Setup')}">
-        <div class="card-content root">
-          <p class="hint">${escapeHtml(hint)}</p>
-          <label class="field-label" for="entity-select">Battery Telemetry sensor</label>
-          <select id="entity-select" class="entity-select" ${valid.length ? '' : 'disabled'}>
-            ${valid.map((eid) => `<option value="${escapeHtml(eid)}" ${eid === current ? 'selected' : ''}>${escapeHtml(eid)}</option>`).join('')}
-          </select>
-          <button id="copy-btn" class="copy-btn" ${current ? '' : 'disabled'}>
-            Copy Dashboard Config
-          </button>
-          <div id="status" class="status"></div>
-          <p class="steps">
-            Next: Dashboard -> Edit -> Raw configuration editor -> Paste -> Save.
-          </p>
-        </div>
-      </ha-card>
+  _ensureRoot() {
+    if (this.shadowRoot) return;
+    const root = this.attachShadow({ mode: 'open' });
+    root.innerHTML = `
       <style>
-        .root { display: grid; gap: 12px; }
-        .hint { margin: 0; color: var(--secondary-text-color); }
-        .field-label { font-weight: 600; }
-        .entity-select {
-          width: 100%;
-          min-height: 44px;
-          border: 1px solid var(--divider-color);
-          border-radius: 10px;
-          background: var(--card-background-color);
-          color: var(--primary-text-color);
-          padding: 0 12px;
-          font: inherit;
-        }
-        .copy-btn {
-          width: 100%;
-          min-height: 64px;
-          border: none;
-          border-radius: 12px;
-          background: var(--primary-color);
-          color: var(--text-primary-color, #fff);
-          font-size: 1.05rem;
-          font-weight: 700;
-          cursor: pointer;
-          transition: filter 120ms ease;
-        }
-        .copy-btn:hover { filter: brightness(0.96); }
-        .copy-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-        .status {
-          min-height: 1.2em;
-          color: var(--secondary-text-color);
-          font-size: 0.95rem;
-        }
-        .status.ok { color: var(--success-color, #2e7d32); }
-        .status.err { color: var(--error-color, #b00020); }
-        .steps {
-          margin: 0;
-          color: var(--secondary-text-color);
-          font-size: 0.92rem;
-        }
+        :host { display: block; }
+        .wrap { display: block; }
       </style>
+      <div class="wrap" id="wrap"></div>
     `;
+  }
 
-    const select = this.querySelector('#entity-select');
-    const copyBtn = this.querySelector('#copy-btn');
-    const statusEl = this.querySelector('#status');
+  _renderState() {
+    const wrap = this.shadowRoot?.querySelector('#wrap');
+    if (!wrap) return;
 
-    if (select) {
-      select.addEventListener('change', (ev) => {
-        this._selectedEntity = ev.target.value;
-        if (statusEl) {
-          statusEl.textContent = '';
-          statusEl.className = 'status';
-        }
-      });
+    if (!this._config) {
+      wrap.innerHTML = '';
+      return;
     }
 
-    if (copyBtn) {
-      copyBtn.addEventListener('click', async () => {
-        const entity = this._selectedEntity;
-        if (!entity) return;
-        const payload = buildDashboardYaml(entity);
-        try {
-          await copyText(payload);
-          if (statusEl) {
-            statusEl.textContent = `Copied config for ${entity}.`;
-            statusEl.className = 'status ok';
-          }
-        } catch (err) {
-          if (statusEl) {
-            statusEl.textContent = 'Clipboard failed. Use HTTPS/app context or grant clipboard permission.';
-            statusEl.className = 'status err';
-          }
-        }
-      });
+    const valid = getValidEntities(this._hass);
+    const entity = this._config.entity;
+    if (!entity || !valid.includes(entity)) {
+      if (this._inner && this._inner.parentElement) {
+        this._inner.parentElement.removeChild(this._inner);
+      }
+      this._inner = null;
+      wrap.innerHTML = `
+        <ha-card header="${escapeHtml(this._config.title || 'Battery Telemetry')}">
+          <div class="card-content">
+            ${valid.length
+              ? 'Select a valid sensor in card settings.'
+              : 'No valid Battery Telemetry entities found. Configure the integration first.'}
+          </div>
+        </ha-card>
+      `;
+      return;
+    }
+
+    if (wrap.children.length === 0 || !this._inner) {
+      wrap.innerHTML = '';
+      this._inner = document.createElement('hui-element');
+      wrap.appendChild(this._inner);
+    }
+  }
+
+  _syncInnerConfig() {
+    if (!this._hass || !this._config || !this._inner) return;
+    const valid = getValidEntities(this._hass);
+    if (!valid.includes(this._config.entity)) return;
+
+    const innerConfig = buildApexCardConfig(this._config);
+    try {
+      this._inner.setConfig(innerConfig);
+      this._inner.hass = this._hass;
+    } catch (err) {
+      const wrap = this.shadowRoot?.querySelector('#wrap');
+      if (wrap) {
+        wrap.innerHTML = `<ha-card><div class="card-content">Failed to render chart card: ${escapeHtml(String(err))}</div></ha-card>`;
+      }
     }
   }
 }
 
-class NodeEnergySetupCardEditor extends HTMLElement {
+class BatteryTelemetryCardEditor extends HTMLElement {
   setConfig(config) {
     this._config = {
-      title: 'Battery Telemetry Setup',
       entity: '',
+      title: 'Battery Telemetry',
+      show_power: true,
+      show_sun: true,
+      show_clear: true,
       ...config,
     };
     this._render();
@@ -163,7 +126,6 @@ class NodeEnergySetupCardEditor extends HTMLElement {
 
   _render() {
     if (!this._config || !this._hass) return;
-
     const valid = getValidEntities(this._hass);
     if (this._config.entity && !valid.includes(this._config.entity)) {
       this._config.entity = '';
@@ -173,16 +135,9 @@ class NodeEnergySetupCardEditor extends HTMLElement {
     }
 
     this.innerHTML = `
-      <div class="editor">
-        <label>Title</label>
-        <input id="title" type="text" value="${escapeHtml(this._config.title || 'Battery Telemetry Setup')}" />
-        <label>Default Battery Telemetry sensor</label>
-        <select id="entity">
-          ${valid.map((eid) => `<option value="${escapeHtml(eid)}" ${eid === this._config.entity ? 'selected' : ''}>${escapeHtml(eid)}</option>`).join('')}
-        </select>
-      </div>
       <style>
-        .editor { display: grid; gap: 8px; padding: 8px 0; }
+        .editor { display: grid; gap: 10px; padding: 8px 0; }
+        .row { display: grid; gap: 6px; }
         label { font-weight: 600; color: var(--primary-text-color); }
         input, select {
           width: 100%;
@@ -193,45 +148,201 @@ class NodeEnergySetupCardEditor extends HTMLElement {
           color: var(--primary-text-color);
           padding: 0 10px;
           font: inherit;
+          box-sizing: border-box;
         }
+        .checks { display: grid; gap: 8px; }
+        .check { display: flex; align-items: center; gap: 8px; }
       </style>
+      <div class="editor">
+        <div class="row">
+          <label>Title</label>
+          <input id="title" type="text" value="${escapeHtml(this._config.title || 'Battery Telemetry')}" />
+        </div>
+        <div class="row">
+          <label>Battery Telemetry sensor</label>
+          <select id="entity">
+            ${valid.map((eid) => `<option value="${escapeHtml(eid)}" ${eid === this._config.entity ? 'selected' : ''}>${escapeHtml(eid)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="checks">
+          <label class="check"><input id="show_power" type="checkbox" ${this._config.show_power ? 'checked' : ''}/>Show power series</label>
+          <label class="check"><input id="show_sun" type="checkbox" ${this._config.show_sun ? 'checked' : ''}/>Show sun elevation series</label>
+          <label class="check"><input id="show_clear" type="checkbox" ${this._config.show_clear ? 'checked' : ''}/>Show clear-sky projection</label>
+        </div>
+      </div>
     `;
 
-    const title = this.querySelector('#title');
-    const entity = this.querySelector('#entity');
-
-    if (title) {
-      title.addEventListener('change', (ev) => {
-        this._config = { ...this._config, title: ev.target.value };
-        this._notify();
-      });
-    }
-
-    if (entity) {
-      entity.addEventListener('change', (ev) => {
-        this._config = { ...this._config, entity: ev.target.value };
-        this._notify();
-      });
-    }
+    this.querySelector('#title')?.addEventListener('change', (ev) => {
+      this._config = { ...this._config, title: ev.target.value };
+      this._notify();
+    });
+    this.querySelector('#entity')?.addEventListener('change', (ev) => {
+      this._config = { ...this._config, entity: ev.target.value };
+      this._notify();
+    });
+    this.querySelector('#show_power')?.addEventListener('change', (ev) => {
+      this._config = { ...this._config, show_power: !!ev.target.checked };
+      this._notify();
+    });
+    this.querySelector('#show_sun')?.addEventListener('change', (ev) => {
+      this._config = { ...this._config, show_sun: !!ev.target.checked };
+      this._notify();
+    });
+    this.querySelector('#show_clear')?.addEventListener('change', (ev) => {
+      this._config = { ...this._config, show_clear: !!ev.target.checked };
+      this._notify();
+    });
   }
 
   _notify() {
-    this.dispatchEvent(
-      new CustomEvent('config-changed', {
-        bubbles: true,
-        composed: true,
-        detail: { config: this._config },
-      })
+    this.dispatchEvent(new CustomEvent('config-changed', {
+      bubbles: true,
+      composed: true,
+      detail: { config: this._config },
+    }));
+  }
+}
+
+function buildApexCardConfig(cfg) {
+  const entity = cfg.entity;
+  const showPower = !!cfg.show_power;
+  const showSun = !!cfg.show_sun;
+  const showClear = !!cfg.show_clear;
+
+  const series = [
+    {
+      entity,
+      name: 'SOC (history)',
+      yaxis_id: 'soc',
+      data_generator: 'return (entity.attributes.apex_series?.soc_actual || []).map(p => [new Date(p.x).getTime(), p.y]);',
+    },
+    {
+      entity,
+      name: 'SOC (projection weather)',
+      yaxis_id: 'soc',
+      data_generator: 'return (entity.attributes.apex_series?.soc_projection_weather || []).map(p => [new Date(p.x).getTime(), p.y]);',
+    },
+  ];
+
+  if (showClear) {
+    series.push({
+      entity,
+      name: 'SOC (projection clear sky)',
+      yaxis_id: 'soc',
+      stroke_dash: 6,
+      data_generator: 'return (entity.attributes.apex_series?.soc_projection_clear || []).map(p => [new Date(p.x).getTime(), p.y]);',
+    });
+  }
+
+  if (showPower) {
+    series.push(
+      {
+        entity,
+        name: 'Net W (observed)',
+        yaxis_id: 'power',
+        data_generator: 'return (entity.attributes.apex_series?.power_observed || []).map(p => [new Date(p.x).getTime(), p.y]);',
+      },
+      {
+        entity,
+        name: 'Net W (modeled)',
+        yaxis_id: 'power',
+        data_generator: 'return (entity.attributes.apex_series?.power_modeled || []).map(p => [new Date(p.x).getTime(), p.y]);',
+      },
+      {
+        entity,
+        name: 'Load W',
+        yaxis_id: 'power',
+        data_generator: 'return (entity.attributes.apex_series?.power_consumption || []).map(p => [new Date(p.x).getTime(), p.y]);',
+      },
     );
   }
+
+  if (showSun) {
+    series.push(
+      {
+        entity,
+        name: 'Sun elevation (history)',
+        yaxis_id: 'sun',
+        data_generator: 'return (entity.attributes.apex_series?.sun_history || []).map(p => [new Date(p.x).getTime(), p.y]);',
+      },
+      {
+        entity,
+        name: 'Sun elevation (forecast)',
+        yaxis_id: 'sun',
+        stroke_dash: 6,
+        data_generator: 'return (entity.attributes.apex_series?.sun_forecast || []).map(p => [new Date(p.x).getTime(), p.y]);',
+      },
+    );
+  }
+
+  return {
+    type: 'custom:apexcharts-card',
+    header: {
+      show: true,
+      title: cfg.title || 'Battery Telemetry',
+    },
+    update_interval: '5min',
+    now: {
+      show: true,
+      label: 'Now',
+    },
+    apex_config: {
+      chart: {
+        height: '82vh',
+        toolbar: { show: true },
+      },
+      legend: {
+        show: true,
+        position: 'bottom',
+      },
+      dataLabels: { enabled: false },
+      tooltip: {
+        shared: true,
+        intersect: false,
+      },
+      xaxis: {
+        type: 'datetime',
+        labels: {
+          datetimeUTC: false,
+          format: 'dd MMM HH:mm',
+        },
+      },
+      stroke: {
+        curve: 'smooth',
+      },
+      yaxis: [
+        {
+          id: 'soc',
+          min: 0,
+          max: 100,
+          decimalsInFloat: 0,
+          title: { text: 'SOC %' },
+        },
+        {
+          id: 'power',
+          opposite: true,
+          decimalsInFloat: 1,
+          title: { text: 'Power W' },
+        },
+        {
+          id: 'sun',
+          opposite: true,
+          min: -90,
+          max: 90,
+          decimalsInFloat: 0,
+          title: { text: 'Sun elev °' },
+        },
+      ],
+    },
+    series,
+  };
 }
 
 function getValidEntities(hass) {
   return Object.entries((hass && hass.states) || {})
     .filter(([eid, st]) => {
       if (!eid.startsWith('sensor.')) return false;
-      const as = st && st.attributes && st.attributes.apex_series;
-      return !!as;
+      return !!(st && st.attributes && st.attributes.apex_series);
     })
     .map(([eid]) => eid)
     .sort();
@@ -240,25 +351,6 @@ function getValidEntities(hass) {
 function pickDefaultEntity(hass) {
   const valid = getValidEntities(hass);
   return valid[0] || '';
-}
-
-async function copyText(text) {
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.position = 'fixed';
-  ta.style.opacity = '0';
-  document.body.appendChild(ta);
-  ta.focus();
-  ta.select();
-  const ok = document.execCommand('copy');
-  document.body.removeChild(ta);
-  if (!ok) {
-    throw new Error('Clipboard copy failed');
-  }
 }
 
 function escapeHtml(v) {
@@ -270,113 +362,37 @@ function escapeHtml(v) {
     .replace(/'/g, '&#039;');
 }
 
-function buildDashboardYaml(entity) {
-  return `title: Battery Telemetry
-views:
-  - title: Overview
-    path: overview
-    panel: true
-    cards:
-      - type: custom:apexcharts-card
-        header:
-          show: true
-          title: Battery Telemetry
-        update_interval: 5min
-        now:
-          show: true
-          label: Now
-        apex_config:
-          chart:
-            height: "82vh"
-            toolbar:
-              show: true
-          legend:
-            show: true
-            position: bottom
-          dataLabels:
-            enabled: false
-          tooltip:
-            shared: true
-            intersect: false
-          xaxis:
-            type: datetime
-            labels:
-              datetimeUTC: false
-              format: "dd MMM HH:mm"
-          stroke:
-            curve: smooth
-            width: [3, 3, 2, 2, 2, 2]
-          yaxis:
-            - id: soc
-              min: 0
-              max: 100
-              decimalsInFloat: 0
-              title: { text: "SOC %" }
-            - id: power
-              opposite: true
-              decimalsInFloat: 1
-              title: { text: "Power W" }
-            - id: sun
-              opposite: true
-              min: -90
-              max: 90
-              decimalsInFloat: 0
-              title: { text: "Sun elev °" }
-        series:
-          - entity: ${entity}
-            name: SOC (history)
-            yaxis_id: soc
-            data_generator: return (entity.attributes.apex_series?.soc_actual || []).map(p => [new Date(p.x).getTime(), p.y]);
-          - entity: ${entity}
-            name: SOC (projection weather)
-            yaxis_id: soc
-            data_generator: return (entity.attributes.apex_series?.soc_projection_weather || []).map(p => [new Date(p.x).getTime(), p.y]);
-          - entity: ${entity}
-            name: SOC (projection clear sky)
-            yaxis_id: soc
-            stroke_dash: 6
-            data_generator: return (entity.attributes.apex_series?.soc_projection_clear || []).map(p => [new Date(p.x).getTime(), p.y]);
-          - entity: ${entity}
-            name: Net W (observed)
-            yaxis_id: power
-            data_generator: return (entity.attributes.apex_series?.power_observed || []).map(p => [new Date(p.x).getTime(), p.y]);
-          - entity: ${entity}
-            name: Net W (modeled)
-            yaxis_id: power
-            data_generator: return (entity.attributes.apex_series?.power_modeled || []).map(p => [new Date(p.x).getTime(), p.y]);
-          - entity: ${entity}
-            name: Load W
-            yaxis_id: power
-            data_generator: return (entity.attributes.apex_series?.power_consumption || []).map(p => [new Date(p.x).getTime(), p.y]);
-          - entity: ${entity}
-            name: Sun elevation (history)
-            yaxis_id: sun
-            data_generator: return (entity.attributes.apex_series?.sun_history || []).map(p => [new Date(p.x).getTime(), p.y]);
-          - entity: ${entity}
-            name: Sun elevation (forecast)
-            yaxis_id: sun
-            stroke_dash: 6
-            data_generator: return (entity.attributes.apex_series?.sun_forecast || []).map(p => [new Date(p.x).getTime(), p.y]);
-`;
+if (!customElements.get('battery-telemetry-card')) {
+  customElements.define('battery-telemetry-card', BatteryTelemetryCard);
+}
+if (!customElements.get('battery-telemetry-card-editor')) {
+  customElements.define('battery-telemetry-card-editor', BatteryTelemetryCardEditor);
 }
 
+// Backward-compatible aliases.
+if (!customElements.get('node-energy-card')) {
+  customElements.define('node-energy-card', BatteryTelemetryCard);
+}
+if (!customElements.get('node-energy-card-editor')) {
+  customElements.define('node-energy-card-editor', BatteryTelemetryCardEditor);
+}
 if (!customElements.get('battery-telemetry-setup-card')) {
-  customElements.define('battery-telemetry-setup-card', NodeEnergySetupCard);
+  customElements.define('battery-telemetry-setup-card', BatteryTelemetryCard);
 }
 if (!customElements.get('battery-telemetry-setup-card-editor')) {
-  customElements.define('battery-telemetry-setup-card-editor', NodeEnergySetupCardEditor);
+  customElements.define('battery-telemetry-setup-card-editor', BatteryTelemetryCardEditor);
 }
 if (!customElements.get('node-energy-setup-card')) {
-  customElements.define('node-energy-setup-card', NodeEnergySetupCard);
+  customElements.define('node-energy-setup-card', BatteryTelemetryCard);
 }
 if (!customElements.get('node-energy-setup-card-editor')) {
-  customElements.define('node-energy-setup-card-editor', NodeEnergySetupCardEditor);
+  customElements.define('node-energy-setup-card-editor', BatteryTelemetryCardEditor);
 }
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: 'battery-telemetry-setup-card',
-  name: 'Battery Telemetry Setup',
+  type: 'battery-telemetry-card',
+  name: 'Battery Telemetry',
   preview: true,
-  description: 'UI helper that copies ready-to-paste dashboard YAML for Battery Telemetry Forecast + ApexCharts.',
+  description: 'Chart card for battery telemetry history + forecast powered by the Battery Telemetry Forecast integration.',
 });

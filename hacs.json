@@ -1,5 +1,5 @@
 {
-  "name": "Battery Telemetry Setup Card",
+  "name": "Battery Telemetry Card",
   "filename": "node-energy-card.js",
   "render_readme": true,
   "content_in_root": true,
