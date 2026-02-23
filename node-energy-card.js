@@ -275,91 +275,88 @@ function buildDashboardYaml(entity) {
 views:
   - title: Overview
     path: overview
-    type: sections
-    sections:
-      - type: grid
-        cards:
-          - type: custom:apexcharts-card
-            header:
+    type: masonry
+    cards:
+      - type: custom:apexcharts-card
+        header:
+          show: true
+          title: Node Energy
+        graph_span: 72h
+        now:
+          show: true
+          label: Now
+        apex_config:
+          chart:
+            height: 680
+            toolbar:
               show: true
-              title: Node Energy
-            graph_span: 72h
-            now:
-              show: true
-              label: Now
-            apex_config:
-              chart:
-                height: 680
-                toolbar:
-                  show: true
-              legend:
-                show: true
-              xaxis:
-                type: datetime
-                labels:
-                  datetimeUTC: false
-                  format: dd MMM HH:mm
-              stroke:
-                width: [3, 3, 2, 2, 2, 2, 2, 2]
-              yaxis:
-                - id: soc
-                  min: 0
-                  max: 100
-                  decimalsInFloat: 1
-                  title: { text: "SOC %" }
-                - id: power
-                  opposite: true
-                  title: { text: "Power W" }
-                - id: sun
-                  opposite: true
-                  min: -90
-                  max: 90
-                  title: { text: "Sun elev °" }
-            series:
-              - entity: ${entity}
-                name: SOC (history)
-                yaxis_id: soc
-                data_generator: return (entity.attributes.apex_series?.soc_actual || []).map(p => [new Date(p.x).getTime(), p.y]);
-              - entity: ${entity}
-                name: SOC (projection weather)
-                yaxis_id: soc
-                data_generator: return (entity.attributes.apex_series?.soc_projection_weather || []).map(p => [new Date(p.x).getTime(), p.y]);
-              - entity: ${entity}
-                name: SOC (projection clear sky)
-                yaxis_id: soc
-                stroke_dash: 6
-                data_generator: return (entity.attributes.apex_series?.soc_projection_clear || []).map(p => [new Date(p.x).getTime(), p.y]);
-              - entity: ${entity}
-                name: Observed net W
-                yaxis_id: power
-                data_generator: return (entity.attributes.apex_series?.power_observed || []).map(p => [new Date(p.x).getTime(), p.y]);
-              - entity: ${entity}
-                name: Modeled net W
-                yaxis_id: power
-                data_generator: return (entity.attributes.apex_series?.power_modeled || []).map(p => [new Date(p.x).getTime(), p.y]);
-              - entity: ${entity}
-                name: Production W (weather)
-                yaxis_id: power
-                data_generator: return (entity.attributes.apex_series?.power_production_weather || []).map(p => [new Date(p.x).getTime(), p.y]);
-              - entity: ${entity}
-                name: Production W (clear sky)
-                yaxis_id: power
-                stroke_dash: 6
-                data_generator: return (entity.attributes.apex_series?.power_production_clear || []).map(p => [new Date(p.x).getTime(), p.y]);
-              - entity: ${entity}
-                name: Consumption W
-                yaxis_id: power
-                data_generator: return (entity.attributes.apex_series?.power_consumption || []).map(p => [new Date(p.x).getTime(), p.y]);
-              - entity: ${entity}
-                name: Sun elevation (history)
-                yaxis_id: sun
-                data_generator: return (entity.attributes.apex_series?.sun_history || []).map(p => [new Date(p.x).getTime(), p.y]);
-              - entity: ${entity}
-                name: Sun elevation (forecast)
-                yaxis_id: sun
-                stroke_dash: 6
-                data_generator: return (entity.attributes.apex_series?.sun_forecast || []).map(p => [new Date(p.x).getTime(), p.y]);
-        column_span: 4
+          legend:
+            show: true
+          xaxis:
+            type: datetime
+            labels:
+              datetimeUTC: false
+              format: dd MMM HH:mm
+          stroke:
+            width: [3, 3, 2, 2, 2, 2, 2, 2]
+          yaxis:
+            - id: soc
+              min: 0
+              max: 100
+              decimalsInFloat: 1
+              title: { text: "SOC %" }
+            - id: power
+              opposite: true
+              title: { text: "Power W" }
+            - id: sun
+              opposite: true
+              min: -90
+              max: 90
+              title: { text: "Sun elev °" }
+        series:
+          - entity: ${entity}
+            name: SOC (history)
+            yaxis_id: soc
+            data_generator: return (entity.attributes.apex_series?.soc_actual || []).map(p => [new Date(p.x).getTime(), p.y]);
+          - entity: ${entity}
+            name: SOC (projection weather)
+            yaxis_id: soc
+            data_generator: return (entity.attributes.apex_series?.soc_projection_weather || []).map(p => [new Date(p.x).getTime(), p.y]);
+          - entity: ${entity}
+            name: SOC (projection clear sky)
+            yaxis_id: soc
+            stroke_dash: 6
+            data_generator: return (entity.attributes.apex_series?.soc_projection_clear || []).map(p => [new Date(p.x).getTime(), p.y]);
+          - entity: ${entity}
+            name: Observed net W
+            yaxis_id: power
+            data_generator: return (entity.attributes.apex_series?.power_observed || []).map(p => [new Date(p.x).getTime(), p.y]);
+          - entity: ${entity}
+            name: Modeled net W
+            yaxis_id: power
+            data_generator: return (entity.attributes.apex_series?.power_modeled || []).map(p => [new Date(p.x).getTime(), p.y]);
+          - entity: ${entity}
+            name: Production W (weather)
+            yaxis_id: power
+            data_generator: return (entity.attributes.apex_series?.power_production_weather || []).map(p => [new Date(p.x).getTime(), p.y]);
+          - entity: ${entity}
+            name: Production W (clear sky)
+            yaxis_id: power
+            stroke_dash: 6
+            data_generator: return (entity.attributes.apex_series?.power_production_clear || []).map(p => [new Date(p.x).getTime(), p.y]);
+          - entity: ${entity}
+            name: Consumption W
+            yaxis_id: power
+            data_generator: return (entity.attributes.apex_series?.power_consumption || []).map(p => [new Date(p.x).getTime(), p.y]);
+          - entity: ${entity}
+            name: Sun elevation (history)
+            yaxis_id: sun
+            data_generator: return (entity.attributes.apex_series?.sun_history || []).map(p => [new Date(p.x).getTime(), p.y]);
+          - entity: ${entity}
+            name: Sun elevation (forecast)
+            yaxis_id: sun
+            stroke_dash: 6
+            data_generator: return (entity.attributes.apex_series?.sun_forecast || []).map(p => [new Date(p.x).getTime(), p.y]);
 `;
 }
 
