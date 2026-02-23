@@ -275,43 +275,52 @@ function buildDashboardYaml(entity) {
 views:
   - title: Overview
     path: overview
-    type: masonry
+    panel: true
     cards:
       - type: custom:apexcharts-card
         header:
           show: true
           title: Node Energy
-        graph_span: 72h
+        update_interval: 5min
         now:
           show: true
           label: Now
         apex_config:
           chart:
-            height: 680
+            height: "82vh"
             toolbar:
               show: true
           legend:
             show: true
+            position: bottom
+          dataLabels:
+            enabled: false
+          tooltip:
+            shared: true
+            intersect: false
           xaxis:
             type: datetime
             labels:
               datetimeUTC: false
-              format: dd MMM HH:mm
+              format: "dd MMM HH:mm"
           stroke:
-            width: [3, 3, 2, 2, 2, 2, 2, 2]
+            curve: smooth
+            width: [3, 3, 2, 2, 2, 2]
           yaxis:
             - id: soc
               min: 0
               max: 100
-              decimalsInFloat: 1
+              decimalsInFloat: 0
               title: { text: "SOC %" }
             - id: power
               opposite: true
+              decimalsInFloat: 1
               title: { text: "Power W" }
             - id: sun
               opposite: true
               min: -90
               max: 90
+              decimalsInFloat: 0
               title: { text: "Sun elev °" }
         series:
           - entity: ${entity}
@@ -328,24 +337,15 @@ views:
             stroke_dash: 6
             data_generator: return (entity.attributes.apex_series?.soc_projection_clear || []).map(p => [new Date(p.x).getTime(), p.y]);
           - entity: ${entity}
-            name: Observed net W
+            name: Net W (observed)
             yaxis_id: power
             data_generator: return (entity.attributes.apex_series?.power_observed || []).map(p => [new Date(p.x).getTime(), p.y]);
           - entity: ${entity}
-            name: Modeled net W
+            name: Net W (modeled)
             yaxis_id: power
             data_generator: return (entity.attributes.apex_series?.power_modeled || []).map(p => [new Date(p.x).getTime(), p.y]);
           - entity: ${entity}
-            name: Production W (weather)
-            yaxis_id: power
-            data_generator: return (entity.attributes.apex_series?.power_production_weather || []).map(p => [new Date(p.x).getTime(), p.y]);
-          - entity: ${entity}
-            name: Production W (clear sky)
-            yaxis_id: power
-            stroke_dash: 6
-            data_generator: return (entity.attributes.apex_series?.power_production_clear || []).map(p => [new Date(p.x).getTime(), p.y]);
-          - entity: ${entity}
-            name: Consumption W
+            name: Load W
             yaxis_id: power
             data_generator: return (entity.attributes.apex_series?.power_consumption || []).map(p => [new Date(p.x).getTime(), p.y]);
           - entity: ${entity}
