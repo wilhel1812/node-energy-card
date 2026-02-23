@@ -1,394 +1,158 @@
-class NodeEnergyCard extends HTMLElement {
+class NodeEnergySetupCard extends HTMLElement {
   static getStubConfig(hass) {
-    const preferred =
-      Object.entries((hass && hass.states) || {})
-        .filter(
-          ([eid, st]) =>
-            eid.startsWith("sensor.") &&
-            st &&
-            st.attributes &&
-            st.attributes.forecast &&
-            st.attributes.intervals &&
-            st.attributes.model
-        )
-        .map(([eid]) => eid)[0] || "";
-    return { entity: preferred, cells: 2, days: 7 };
+    const entity = pickDefaultEntity(hass);
+    return {
+      title: 'Node Energy Setup',
+      entity,
+    };
   }
 
   static getConfigElement() {
-    return document.createElement("node-energy-card-editor");
+    return document.createElement('node-energy-setup-card-editor');
   }
 
   setConfig(config) {
-    this._config = { entity: "", cells: 2, days: 7, ...config };
+    this._config = {
+      title: 'Node Energy Setup',
+      entity: '',
+      ...config,
+    };
+    this._selectedEntity = this._config.entity || '';
+    this._render();
   }
 
   set hass(hass) {
     this._hass = hass;
+    const valid = getValidEntities(hass);
+    if (!this._selectedEntity || !valid.includes(this._selectedEntity)) {
+      this._selectedEntity = this._config?.entity && valid.includes(this._config.entity)
+        ? this._config.entity
+        : (valid[0] || '');
+    }
     this._render();
   }
 
   getCardSize() {
-    return 12;
-  }
-
-  _range(series, fallbackMin, fallbackMax, padPct = 0.12) {
-    if (!series.length) return [fallbackMin, fallbackMax];
-    let mn = Math.min(...series.map((p) => p.y));
-    let mx = Math.max(...series.map((p) => p.y));
-    if (!Number.isFinite(mn) || !Number.isFinite(mx)) return [fallbackMin, fallbackMax];
-    if (mn === mx) {
-      mn -= 1;
-      mx += 1;
-    }
-    const span = mx - mn;
-    return [mn - span * padPct, mx + span * padPct];
-  }
-
-  _polyline(series, mapX, mapY) {
-    if (!series.length) return "";
-    return series.map((p) => `${mapX(p.x).toFixed(1)},${mapY(p.y).toFixed(1)}`).join(" ");
+    return 5;
   }
 
   _render() {
     if (!this._config || !this._hass) return;
 
-    const st = this._hass.states[this._config.entity];
-    if (!st) {
-      this.innerHTML = `<ha-card header="Node Energy"><div class="card-content">Entity not found: ${this._config.entity}</div></ha-card>`;
-      return;
-    }
+    const valid = getValidEntities(this._hass);
+    const current = valid.includes(this._selectedEntity) ? this._selectedEntity : (valid[0] || '');
+    this._selectedEntity = current;
 
-    const attrs = st.attributes || {};
-    const meta = attrs.meta || {};
-    const model = attrs.model || {};
-    const hist = attrs.history_soc || [];
-    const intervals = attrs.intervals || [];
-    const forecast = attrs.forecast || {};
-
-    const cells = Number(this._config.cells || 2);
-    const days = Number(this._config.days || 7);
-
-    const latestSoc = Number(forecast.latest_soc ?? st.state ?? 0);
-    const loadW = Number(model.load_w || 0);
-    const solarPeakW = Number(model.solar_peak_w || 0);
-    const avgNetW = Number(model.avg_net_w_observed || 0);
-
-    const cellMah = Number(this._config.cell_mah || meta.cell_mah || 3500);
-    const cellV = Number(this._config.cell_v || meta.cell_v || 3.7);
-    const cellWh = (cellMah / 1000) * cellV;
-
-    const ft = (forecast.times || []).map((t) => new Date(t).getTime());
-    const wf = forecast.weather_factor || [];
-    const sp = forecast.solar_proxy || [];
-    const fSolarElev = forecast.solar_elev || [];
-
-    const n = Math.max(2, Math.min(ft.length - 1, Math.floor(days * 24 * 6)));
-    const stepH = 10 / 60;
-
-    const projWeather = [{ x: ft[0], y: latestSoc }];
-    const projClear = [{ x: ft[0], y: latestSoc }];
-
-    let sw = latestSoc;
-    let sc = latestSoc;
-    for (let i = 1; i <= n; i++) {
-      const prodW = solarPeakW * Number(sp[i] || 0) * Number(wf[i] || 1);
-      const prodC = solarPeakW * Number(sp[i] || 0);
-      sw += ((-loadW + prodW) * stepH / (cells * cellWh)) * 100;
-      sc += ((-loadW + prodC) * stepH / (cells * cellWh)) * 100;
-      sw = Math.max(0, Math.min(100, sw));
-      sc = Math.max(0, Math.min(100, sc));
-      projWeather.push({ x: ft[i], y: sw });
-      projClear.push({ x: ft[i], y: sc });
-    }
-
-    const histSeries = hist
-      .map((p) => ({ x: new Date(p.t).getTime(), y: Number(p.v) }))
-      .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
-
-    const allSoc = [...histSeries, ...projWeather, ...projClear];
-    if (!allSoc.length) {
-      this.innerHTML = `<ha-card header="Node Energy"><div class="card-content">No history/forecast data yet.</div></ha-card>`;
-      return;
-    }
-
-    const xMin = Math.min(...allSoc.map((p) => p.x));
-    const xMax = Math.max(...allSoc.map((p) => p.x));
-
-    const histSunSeries = intervals
-      .map((p) => ({ x: new Date(p.tm).getTime(), y: Number(p.sun_elev_deg) }))
-      .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
-    const fcSunSeries = ft.slice(0, n + 1).map((x, i) => ({ x, y: Number(fSolarElev[i] || 0) }));
-    const allSun = [...histSunSeries, ...fcSunSeries];
-    const [sunYMin, sunYMax] = this._range(allSun, -10, 30, 0.08);
-
-    const intervalSeries = intervals
-      .map((p) => ({
-        x: new Date(p.tm).getTime(),
-        obs: Number(p.net_power_obs_w),
-        model: Number(p.net_power_model_w),
-        prodW: Number(p.production_w),
-        prodClear: Number(p.production_clear_w),
-        cons: Number(p.consumption_w),
-      }))
-      .filter((p) => Number.isFinite(p.x));
-    const pObs = intervalSeries.filter((p) => Number.isFinite(p.obs)).map((p) => ({ x: p.x, y: p.obs }));
-    const pModel = intervalSeries.filter((p) => Number.isFinite(p.model)).map((p) => ({ x: p.x, y: p.model }));
-    const pProdW = intervalSeries.filter((p) => Number.isFinite(p.prodW)).map((p) => ({ x: p.x, y: p.prodW }));
-    const pProdC = intervalSeries.filter((p) => Number.isFinite(p.prodClear)).map((p) => ({ x: p.x, y: p.prodClear }));
-    const pCons = intervalSeries.filter((p) => Number.isFinite(p.cons)).map((p) => ({ x: p.x, y: p.cons }));
-    const allPower = [...pObs, ...pModel, ...pProdW, ...pProdC, ...pCons];
-    const [powYMin, powYMax] = this._range(allPower, -1, 1, 0.12);
-
-    const nowX = histSeries.length ? histSeries[histSeries.length - 1].x : projWeather[0].x;
-
-    const w = 1000;
-    const h = 700;
-    const padL = 58;
-    const padR = 18;
-    const padT = 18;
-    const padB = 46;
-    const gap = 14;
-    const r1H = 120;
-    const r2H = 90;
-    const r3H = 360;
-    const r1Y = padT;
-    const r2Y = r1Y + r1H + gap;
-    const r3Y = r2Y + r2H + gap;
-
-    const x0 = padL;
-    const x1 = w - padR;
-    const xSpan = Math.max(1, xMax - xMin);
-    const mapX = (x) => x0 + ((x - xMin) / xSpan) * (x1 - x0);
-    const mapY = (y, yMin, yMax, top, height) => {
-      const span = Math.max(1e-9, yMax - yMin);
-      return top + height - ((y - yMin) / span) * height;
-    };
-
-    const socY = (v) => mapY(v, 0, 100, r1Y, r1H);
-    const sunY = (v) => mapY(v, sunYMin, sunYMax, r2Y, r2H);
-    const powY = (v) => mapY(v, powYMin, powYMax, r3Y, r3H);
-
-    const socCombined = [...histSeries, ...projWeather.slice(1)];
-    const socPts = this._polyline(socCombined, mapX, socY);
-    const socCPts = this._polyline(projClear, mapX, socY);
-
-    const sunHistPts = this._polyline(histSunSeries, mapX, sunY);
-    const sunFcPts = this._polyline(fcSunSeries, mapX, sunY);
-
-    const pObsPts = this._polyline(pObs, mapX, powY);
-    const pModelPts = this._polyline(pModel, mapX, powY);
-    const pProdWPts = this._polyline(pProdW, mapX, powY);
-    const pProdCPts = this._polyline(pProdC, mapX, powY);
-    const pConsPts = this._polyline(pCons, mapX, powY);
-
-    const nowSX = mapX(nowX);
-
-    const tickCount = 7;
-    const ticks = [];
-    for (let i = 0; i < tickCount; i++) {
-      const t = xMin + ((xMax - xMin) * i) / (tickCount - 1);
-      const d = new Date(t);
-      const label = `${d.toLocaleDateString([], { month: "short", day: "numeric" })} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-      ticks.push({ x: mapX(t), label });
-    }
+    const hint = valid.length
+      ? 'Choose your Node Energy sensor and copy ready-to-paste dashboard YAML.'
+      : 'No valid Node Energy sensors found yet. Configure the integration first.';
 
     this.innerHTML = `
-      <ha-card header="Node Energy">
-        <div class="card-content">
-          <div class="chips">
-            <div class="chip"><span>Latest</span><b>${latestSoc.toFixed(1)}%</b></div>
-            <div class="chip"><span>Load</span><b>${loadW.toFixed(2)} W</b></div>
-            <div class="chip"><span>Solar Peak</span><b>${solarPeakW.toFixed(2)} W</b></div>
-            <div class="chip"><span>Avg Net</span><b>${avgNetW.toFixed(2)} W</b></div>
-            <div class="chip"><span>Cells</span><b>${cells}</b></div>
-            <div class="chip"><span>Start Hour</span><b>${meta.start_hour ?? "-"}:00</b></div>
-            <div class="chip wide"><span>Weather Entity</span><b>${meta.weather_entity || "(none)"}</b></div>
-          </div>
-
-          <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="chart">
-            <line x1="${x0}" y1="${r1Y + r1H}" x2="${x1}" y2="${r1Y + r1H}" class="axis"></line>
-            <line x1="${x0}" y1="${r2Y + r2H}" x2="${x1}" y2="${r2Y + r2H}" class="axis"></line>
-            <line x1="${x0}" y1="${r3Y + r3H}" x2="${x1}" y2="${r3Y + r3H}" class="axis"></line>
-            <line x1="${x0}" y1="${r1Y}" x2="${x0}" y2="${r3Y + r3H}" class="axis"></line>
-
-            <polyline points="${socPts}" class="soc"></polyline>
-            <polyline points="${socCPts}" class="projc"></polyline>
-
-            <polyline points="${sunHistPts}" class="sunh"></polyline>
-            <polyline points="${sunFcPts}" class="sunf"></polyline>
-
-            <polyline points="${pObsPts}" class="pobs"></polyline>
-            <polyline points="${pModelPts}" class="pmodel"></polyline>
-            <polyline points="${pProdWPts}" class="pprodw"></polyline>
-            <polyline points="${pProdCPts}" class="pprodc"></polyline>
-            <polyline points="${pConsPts}" class="pcons"></polyline>
-
-            <line x1="${nowSX.toFixed(1)}" y1="${r1Y}" x2="${nowSX.toFixed(1)}" y2="${r3Y + r3H}" class="now"></line>
-            <text x="${(nowSX + 4).toFixed(1)}" y="${(r1Y + 12).toFixed(1)}" class="txt">Now</text>
-
-            <text x="8" y="${(r1Y + 12).toFixed(1)}" class="txt">SOC</text>
-            <text x="8" y="${(r2Y + 12).toFixed(1)}" class="txt">Sun °</text>
-            <text x="8" y="${(r3Y + 12).toFixed(1)}" class="txt">Power W</text>
-
-            ${ticks
-              .map(
-                (t) => `
-              <line x1="${t.x.toFixed(1)}" y1="${r3Y + r3H}" x2="${t.x.toFixed(1)}" y2="${r3Y + r3H + 6}" class="axis"></line>
-              <text x="${t.x.toFixed(1)}" y="${h - 16}" class="xtick" text-anchor="middle">${t.label}</text>
-            `
-              )
-              .join("")}
-          </svg>
-
-          <div id="tooltip" class="tooltip hidden"></div>
-          <div class="legend">
-            <span class="lg" data-target="soc"><i class="dot soc"></i>SOC (history + projection)</span>
-            <span class="lg" data-target="projc"><i class="dot projc"></i>SOC projection (clear)</span>
-            <span class="lg" data-target="sunh"><i class="dot sunh"></i>Sun elevation (history)</span>
-            <span class="lg" data-target="sunf"><i class="dot sunf"></i>Sun elevation (forecast)</span>
-            <span class="lg" data-target="pobs"><i class="dot pobs"></i>Observed net W</span>
-            <span class="lg" data-target="pmodel"><i class="dot pmodel"></i>Modeled net W</span>
-            <span class="lg" data-target="pprodw"><i class="dot pprodw"></i>Production W (weather)</span>
-            <span class="lg" data-target="pprodc"><i class="dot pprodc"></i>Production W (clear)</span>
-            <span class="lg" data-target="pcons"><i class="dot pcons"></i>Consumption W</span>
-          </div>
+      <ha-card header="${escapeHtml(this._config.title || 'Node Energy Setup')}">
+        <div class="card-content root">
+          <p class="hint">${escapeHtml(hint)}</p>
+          <label class="field-label" for="entity-select">Node Energy sensor</label>
+          <select id="entity-select" class="entity-select" ${valid.length ? '' : 'disabled'}>
+            ${valid.map((eid) => `<option value="${escapeHtml(eid)}" ${eid === current ? 'selected' : ''}>${escapeHtml(eid)}</option>`).join('')}
+          </select>
+          <button id="copy-btn" class="copy-btn" ${current ? '' : 'disabled'}>
+            Copy Dashboard Config
+          </button>
+          <div id="status" class="status"></div>
+          <p class="steps">
+            Next: Dashboard -> Edit -> Raw configuration editor -> Paste -> Save.
+          </p>
         </div>
       </ha-card>
       <style>
-        .card-content { padding: 12px; }
-        .chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 10px; }
-        .chip { border: 1px solid var(--divider-color); border-radius: 10px; padding: 8px 10px; background: color-mix(in srgb, var(--card-background-color) 92%, var(--primary-text-color) 8%); }
-        .chip.wide { grid-column: span 2; }
-        .chip span { display: block; font-size: 11px; color: var(--secondary-text-color); }
-        .chip b { font-size: 14px; color: var(--primary-text-color); }
-
-        .chart {
+        .root { display: grid; gap: 12px; }
+        .hint { margin: 0; color: var(--secondary-text-color); }
+        .field-label { font-weight: 600; }
+        .entity-select {
           width: 100%;
-          height: 620px;
-          background: var(--card-background-color);
+          min-height: 44px;
           border: 1px solid var(--divider-color);
           border-radius: 10px;
-          margin-top: 8px;
-        }
-
-        .axis { stroke: var(--divider-color); stroke-width: 1; }
-        .txt { font-size: 11px; fill: var(--secondary-text-color); }
-        .xtick { font-size: 10px; fill: var(--secondary-text-color); }
-        .now { stroke: var(--secondary-text-color); stroke-width: 1.2; stroke-dasharray: 4 4; }
-
-        .soc { fill: none; stroke: #17a589; stroke-width: 2.8; }
-        .projc { fill: none; stroke: #17a589; stroke-width: 1.6; stroke-dasharray: 5 4; }
-
-        .sunh { fill: none; stroke: #b45309; stroke-width: 2.1; }
-        .sunf { fill: none; stroke: #f59e0b; stroke-width: 1.7; stroke-dasharray: 5 4; }
-
-        .pobs { fill: none; stroke: #475569; stroke-width: 1.5; }
-        .pmodel { fill: none; stroke: #0f766e; stroke-width: 1.6; }
-        .pprodw { fill: none; stroke: #d97706; stroke-width: 1.6; }
-        .pprodc { fill: none; stroke: #94a3b8; stroke-width: 1.4; stroke-dasharray: 5 4; }
-        .pcons { fill: none; stroke: #b91c1c; stroke-width: 1.6; }
-
-        .legend { display: flex; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--secondary-text-color); flex-wrap: wrap; }
-        .lg { cursor: pointer; user-select: none; }
-        .dot { display: inline-block; width: 10px; height: 10px; border-radius: 999px; margin-right: 6px; vertical-align: -1px; }
-        .dot.soc { background: #17a589; }
-        .dot.projc { background: transparent; border: 1px dashed #17a589; }
-        .dot.sunh { background: #b45309; }
-        .dot.sunf { background: transparent; border: 1px dashed #f59e0b; }
-        .dot.pobs { background: #475569; }
-        .dot.pmodel { background: #0f766e; }
-        .dot.pprodw { background: #d97706; }
-        .dot.pprodc { background: transparent; border: 1px dashed #94a3b8; }
-        .dot.pcons { background: #b91c1c; }
-        .fade { opacity: 0.18; transition: opacity 120ms linear; }
-        .highlight { opacity: 1 !important; stroke-width: 3.2; }
-        .tooltip {
-          position: absolute;
-          z-index: 5;
-          pointer-events: none;
           background: var(--card-background-color);
           color: var(--primary-text-color);
-          border: 1px solid var(--divider-color);
-          border-radius: 8px;
-          padding: 6px 8px;
-          font-size: 12px;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+          padding: 0 12px;
+          font: inherit;
         }
-        .hidden { display: none; }
+        .copy-btn {
+          width: 100%;
+          min-height: 64px;
+          border: none;
+          border-radius: 12px;
+          background: var(--primary-color);
+          color: var(--text-primary-color, #fff);
+          font-size: 1.05rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: filter 120ms ease;
+        }
+        .copy-btn:hover { filter: brightness(0.96); }
+        .copy-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        .status {
+          min-height: 1.2em;
+          color: var(--secondary-text-color);
+          font-size: 0.95rem;
+        }
+        .status.ok { color: var(--success-color, #2e7d32); }
+        .status.err { color: var(--error-color, #b00020); }
+        .steps {
+          margin: 0;
+          color: var(--secondary-text-color);
+          font-size: 0.92rem;
+        }
       </style>
     `;
 
-    const svg = this.querySelector("svg.chart");
-    const tooltip = this.querySelector("#tooltip");
-    const cardContent = this.querySelector(".card-content");
-    const seriesByName = {
-      soc: socCombined,
-      projc: projClear,
-      sunh: histSunSeries,
-      sunf: fcSunSeries,
-      pobs: pObs,
-      pmodel: pModel,
-      pprodw: pProdW,
-      pprodc: pProdC,
-      pcons: pCons,
-    };
-    const nearestPoint = (arr, x) => {
-      if (!arr.length) return null;
-      let best = arr[0];
-      let bd = Math.abs(arr[0].x - x);
-      for (let i = 1; i < arr.length; i++) {
-        const d = Math.abs(arr[i].x - x);
-        if (d < bd) {
-          bd = d;
-          best = arr[i];
+    const select = this.querySelector('#entity-select');
+    const copyBtn = this.querySelector('#copy-btn');
+    const statusEl = this.querySelector('#status');
+
+    if (select) {
+      select.addEventListener('change', (ev) => {
+        this._selectedEntity = ev.target.value;
+        if (statusEl) {
+          statusEl.textContent = '';
+          statusEl.className = 'status';
         }
-      }
-      return best;
-    };
-
-    svg?.addEventListener("mousemove", (ev) => {
-      const rect = svg.getBoundingClientRect();
-      const rx = Math.max(0, Math.min(rect.width, ev.clientX - rect.left));
-      const tx = xMin + (rx / Math.max(1, rect.width)) * (xMax - xMin);
-      const rows = [];
-      for (const [name, arr] of Object.entries(seriesByName)) {
-        const p = nearestPoint(arr, tx);
-        if (p) rows.push(`${name}: ${p.y.toFixed(2)}`);
-      }
-      const date = new Date(tx);
-      tooltip.classList.remove("hidden");
-      tooltip.innerHTML = `<div><b>${date.toLocaleString()}</b></div><div>${rows.join("<br/>")}</div>`;
-      const cRect = cardContent.getBoundingClientRect();
-      tooltip.style.left = `${ev.clientX - cRect.left + 12}px`;
-      tooltip.style.top = `${ev.clientY - cRect.top + 12}px`;
-    });
-    svg?.addEventListener("mouseleave", () => tooltip.classList.add("hidden"));
-
-    const polylines = {};
-    for (const name of Object.keys(seriesByName)) {
-      const el = this.querySelector(`.${name}`);
-      if (el) polylines[name] = el;
+      });
     }
-    this.querySelectorAll(".legend .lg").forEach((el) => {
-      el.addEventListener("mouseenter", () => {
-        const target = el.getAttribute("data-target");
-        Object.entries(polylines).forEach(([name, line]) => {
-          line.classList.remove("fade", "highlight");
-          if (name === target) line.classList.add("highlight");
-          else line.classList.add("fade");
-        });
+
+    if (copyBtn) {
+      copyBtn.addEventListener('click', async () => {
+        const entity = this._selectedEntity;
+        if (!entity) return;
+        const payload = buildDashboardYaml(entity);
+        try {
+          await copyText(payload);
+          if (statusEl) {
+            statusEl.textContent = `Copied config for ${entity}.`;
+            statusEl.className = 'status ok';
+          }
+        } catch (err) {
+          if (statusEl) {
+            statusEl.textContent = 'Clipboard failed. Use HTTPS/app context or grant clipboard permission.';
+            statusEl.className = 'status err';
+          }
+        }
       });
-      el.addEventListener("mouseleave", () => {
-        Object.values(polylines).forEach((line) => line.classList.remove("fade", "highlight"));
-      });
-    });
+    }
   }
 }
 
-class NodeEnergyCardEditor extends HTMLElement {
+class NodeEnergySetupCardEditor extends HTMLElement {
   setConfig(config) {
-    this._config = { entity: "", cells: 2, days: 7, ...config };
+    this._config = {
+      title: 'Node Energy Setup',
+      entity: '',
+      ...config,
+    };
     this._render();
   }
 
@@ -397,106 +161,219 @@ class NodeEnergyCardEditor extends HTMLElement {
     this._render();
   }
 
-  _emitChanged() {
-    this.dispatchEvent(
-      new CustomEvent("config-changed", {
-        detail: { config: this._config },
-        bubbles: true,
-        composed: true,
-      })
-    );
-  }
-
   _render() {
-    if (!this._hass || !this._config) return;
+    if (!this._config || !this._hass) return;
 
-    const validSensors = Object.entries(this._hass.states || {})
-      .filter(
-        ([eid, st]) =>
-          eid.startsWith("sensor.") &&
-          st &&
-          st.attributes &&
-          st.attributes.forecast &&
-          st.attributes.intervals &&
-          st.attributes.model
-      )
-      .map(([eid, st]) => ({ eid, name: st.attributes.friendly_name || eid }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    if (!this._config.entity && validSensors.length) {
-      this._config = { ...this._config, entity: validSensors[0].eid };
-      this._emitChanged();
+    const valid = getValidEntities(this._hass);
+    if (this._config.entity && !valid.includes(this._config.entity)) {
+      this._config.entity = '';
+    }
+    if (!this._config.entity && valid[0]) {
+      this._config.entity = valid[0];
     }
 
     this.innerHTML = `
+      <div class="editor">
+        <label>Title</label>
+        <input id="title" type="text" value="${escapeHtml(this._config.title || 'Node Energy Setup')}" />
+        <label>Default Node Energy sensor</label>
+        <select id="entity">
+          ${valid.map((eid) => `<option value="${escapeHtml(eid)}" ${eid === this._config.entity ? 'selected' : ''}>${escapeHtml(eid)}</option>`).join('')}
+        </select>
+      </div>
       <style>
-        .wrap { display: grid; gap: 10px; }
-        .row { display: grid; gap: 4px; }
-        label { font-size: 12px; color: var(--secondary-text-color); }
+        .editor { display: grid; gap: 8px; padding: 8px 0; }
+        label { font-weight: 600; color: var(--primary-text-color); }
         input, select {
-          padding: 8px;
+          width: 100%;
+          min-height: 38px;
           border: 1px solid var(--divider-color);
-          border-radius: 6px;
+          border-radius: 8px;
           background: var(--card-background-color);
           color: var(--primary-text-color);
+          padding: 0 10px;
+          font: inherit;
         }
       </style>
-      <div class="wrap">
-        <div class="row">
-          <label>Entity</label>
-          <select id="entity">
-            ${
-              validSensors.length
-                ? validSensors
-                    .map(
-                      (s) =>
-                        `<option value="${s.eid}" ${
-                          s.eid === this._config.entity ? "selected" : ""
-                        }>${s.name} (${s.eid})</option>`
-                    )
-                    .join("")
-                : '<option value="">No valid Node Energy entities found</option>'
-            }
-          </select>
-        </div>
-        <div class="row">
-          <label>Cells</label>
-          <input id="cells" type="number" min="1" max="12" step="1" value="${Number(this._config.cells || 2)}" />
-        </div>
-        <div class="row">
-          <label>Days</label>
-          <input id="days" type="number" min="1" max="14" step="1" value="${Number(this._config.days || 7)}" />
-        </div>
-      </div>
     `;
 
-    this.querySelector("#entity")?.addEventListener("change", (ev) => {
-      this._config = { ...this._config, entity: ev.target.value };
-      this._emitChanged();
-    });
-    this.querySelector("#cells")?.addEventListener("change", (ev) => {
-      const v = Math.max(1, Math.min(12, Number(ev.target.value || 2)));
-      this._config = { ...this._config, cells: v };
-      this._emitChanged();
-    });
-    this.querySelector("#days")?.addEventListener("change", (ev) => {
-      const v = Math.max(1, Math.min(14, Number(ev.target.value || 7)));
-      this._config = { ...this._config, days: v };
-      this._emitChanged();
-    });
+    const title = this.querySelector('#title');
+    const entity = this.querySelector('#entity');
+
+    if (title) {
+      title.addEventListener('change', (ev) => {
+        this._config = { ...this._config, title: ev.target.value };
+        this._notify();
+      });
+    }
+
+    if (entity) {
+      entity.addEventListener('change', (ev) => {
+        this._config = { ...this._config, entity: ev.target.value };
+        this._notify();
+      });
+    }
+  }
+
+  _notify() {
+    this.dispatchEvent(
+      new CustomEvent('config-changed', {
+        bubbles: true,
+        composed: true,
+        detail: { config: this._config },
+      })
+    );
   }
 }
 
-if (!customElements.get("node-energy-card")) {
-  customElements.define("node-energy-card", NodeEnergyCard);
+function getValidEntities(hass) {
+  return Object.entries((hass && hass.states) || {})
+    .filter(([eid, st]) => {
+      if (!eid.startsWith('sensor.')) return false;
+      const as = st && st.attributes && st.attributes.apex_series;
+      return !!as;
+    })
+    .map(([eid]) => eid)
+    .sort();
 }
-if (!customElements.get("node-energy-card-editor")) {
-  customElements.define("node-energy-card-editor", NodeEnergyCardEditor);
+
+function pickDefaultEntity(hass) {
+  const valid = getValidEntities(hass);
+  return valid[0] || '';
+}
+
+async function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  const ok = document.execCommand('copy');
+  document.body.removeChild(ta);
+  if (!ok) {
+    throw new Error('Clipboard copy failed');
+  }
+}
+
+function escapeHtml(v) {
+  return String(v || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function buildDashboardYaml(entity) {
+  return `title: Node Energy
+views:
+  - title: Overview
+    path: overview
+    type: sections
+    sections:
+      - type: grid
+        cards:
+          - type: custom:apexcharts-card
+            header:
+              show: true
+              title: Node Energy
+            graph_span: 72h
+            now:
+              show: true
+              label: Now
+            apex_config:
+              chart:
+                height: 680
+                toolbar:
+                  show: true
+              legend:
+                show: true
+              xaxis:
+                type: datetime
+                labels:
+                  datetimeUTC: false
+                  format: dd MMM HH:mm
+              stroke:
+                width: [3, 3, 2, 2, 2, 2, 2, 2]
+              yaxis:
+                - id: soc
+                  min: 0
+                  max: 100
+                  decimalsInFloat: 1
+                  title: { text: "SOC %" }
+                - id: power
+                  opposite: true
+                  title: { text: "Power W" }
+                - id: sun
+                  opposite: true
+                  min: -90
+                  max: 90
+                  title: { text: "Sun elev °" }
+            series:
+              - entity: ${entity}
+                name: SOC (history)
+                yaxis_id: soc
+                data_generator: return (entity.attributes.apex_series?.soc_actual || []).map(p => [new Date(p.x).getTime(), p.y]);
+              - entity: ${entity}
+                name: SOC (projection weather)
+                yaxis_id: soc
+                data_generator: return (entity.attributes.apex_series?.soc_projection_weather || []).map(p => [new Date(p.x).getTime(), p.y]);
+              - entity: ${entity}
+                name: SOC (projection clear sky)
+                yaxis_id: soc
+                stroke_dash: 6
+                data_generator: return (entity.attributes.apex_series?.soc_projection_clear || []).map(p => [new Date(p.x).getTime(), p.y]);
+              - entity: ${entity}
+                name: Observed net W
+                yaxis_id: power
+                data_generator: return (entity.attributes.apex_series?.power_observed || []).map(p => [new Date(p.x).getTime(), p.y]);
+              - entity: ${entity}
+                name: Modeled net W
+                yaxis_id: power
+                data_generator: return (entity.attributes.apex_series?.power_modeled || []).map(p => [new Date(p.x).getTime(), p.y]);
+              - entity: ${entity}
+                name: Production W (weather)
+                yaxis_id: power
+                data_generator: return (entity.attributes.apex_series?.power_production_weather || []).map(p => [new Date(p.x).getTime(), p.y]);
+              - entity: ${entity}
+                name: Production W (clear sky)
+                yaxis_id: power
+                stroke_dash: 6
+                data_generator: return (entity.attributes.apex_series?.power_production_clear || []).map(p => [new Date(p.x).getTime(), p.y]);
+              - entity: ${entity}
+                name: Consumption W
+                yaxis_id: power
+                data_generator: return (entity.attributes.apex_series?.power_consumption || []).map(p => [new Date(p.x).getTime(), p.y]);
+              - entity: ${entity}
+                name: Sun elevation (history)
+                yaxis_id: sun
+                data_generator: return (entity.attributes.apex_series?.sun_history || []).map(p => [new Date(p.x).getTime(), p.y]);
+              - entity: ${entity}
+                name: Sun elevation (forecast)
+                yaxis_id: sun
+                stroke_dash: 6
+                data_generator: return (entity.attributes.apex_series?.sun_forecast || []).map(p => [new Date(p.x).getTime(), p.y]);
+        column_span: 4
+`;
+}
+
+if (!customElements.get('node-energy-setup-card')) {
+  customElements.define('node-energy-setup-card', NodeEnergySetupCard);
+}
+if (!customElements.get('node-energy-setup-card-editor')) {
+  customElements.define('node-energy-setup-card-editor', NodeEnergySetupCardEditor);
 }
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: "node-energy-card",
-  name: "Node Energy Card",
-  description: "Unified history + projection for Node Energy integration",
+  type: 'node-energy-setup-card',
+  name: 'Node Energy Setup',
+  preview: true,
+  description: 'UI helper that copies ready-to-paste dashboard YAML for Node Energy + ApexCharts.',
 });
