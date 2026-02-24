@@ -44,6 +44,7 @@ class BatteryTelemetryCard extends HTMLElement {
     const hasEntityState = !!(entity && this._hass.states[entity]);
     const stateObj = hasEntityState ? this._hass.states[entity] : null;
     const hasApex = !!(stateObj && stateObj.attributes && stateObj.attributes.apex_series);
+    const isUnavailable = !!(stateObj && (stateObj.state === 'unavailable' || stateObj.state === 'unknown'));
 
     if (!entity || (!valid.includes(entity) && !hasEntityState)) {
       this.innerHTML = `
@@ -52,6 +53,18 @@ class BatteryTelemetryCard extends HTMLElement {
             ${valid.length
               ? 'Select a valid Battery Telemetry entity in card settings.'
               : 'No valid Battery Telemetry entities found. Configure the integration first.'}
+          </div>
+        </ha-card>
+      `;
+      return;
+    }
+
+    if (hasEntityState && !hasApex && isUnavailable) {
+      this.innerHTML = `
+        <ha-card header="${escapeHtml(this._config.title)}">
+          <div class="card-content">
+            Entity <code>${escapeHtml(entity)}</code> is currently <b>${escapeHtml(stateObj.state)}</b>.
+            Waiting for integration data (<code>apex_series</code>) to become available.
           </div>
         </ha-card>
       `;
