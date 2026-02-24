@@ -183,18 +183,7 @@ function buildApexCardConfig(cfg, apex) {
   };
 
   const history = apex.soc_actual || [];
-  const proj = apex.soc_projection_weather || [];
-  const nowTs = apex.now ? Date.parse(apex.now) : NaN;
-  const projFocus = Number.isFinite(nowTs)
-    ? proj.filter((p) => {
-        const t = Date.parse(p.x);
-        return Number.isFinite(t) && t <= nowTs + 6 * 3600 * 1000;
-      })
-    : proj.slice(0, 36);
-
-  const socRangeSource = cfg.scale_mode === 'absolute'
-    ? []
-    : history.concat(projFocus);
+  const socRangeSource = cfg.scale_mode === 'absolute' ? [] : history;
 
   const [socMinRaw, socMaxRaw] = cfg.scale_mode === 'absolute'
     ? [0, 100]
