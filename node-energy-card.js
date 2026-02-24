@@ -250,7 +250,6 @@ function buildMainApexCardConfig(cfg, apex) {
   const sunSource = (apex.sun_history || []).concat(apex.sun_forecast || []);
   const [sunMin, sunMax] = range(sunSource, -90, 90, 0.08);
   const nowTs = Number.isFinite(Date.parse(apex.now || '')) ? Date.parse(apex.now) : null;
-  const xWindow = computeXWindow(apex);
   const spanWindow = computeSpanWindow(apex, nowTs);
 
   const yaxis = [
@@ -279,6 +278,7 @@ function buildMainApexCardConfig(cfg, apex) {
       name: 'SOC (history)',
       yaxis_id: 'soc',
       color: 'var(--primary-color)',
+      extend_to: false,
       data_generator: 'return (entity.attributes.apex_series?.soc_actual || []).map(p => [new Date(p.x).getTime(), p.y]);',
     },
     {
@@ -286,6 +286,7 @@ function buildMainApexCardConfig(cfg, apex) {
       name: 'SOC (projection weather)',
       yaxis_id: 'soc',
       color: 'var(--primary-color)',
+      extend_to: false,
       data_generator: 'return (entity.attributes.apex_series?.soc_projection_weather || []).map(p => [new Date(p.x).getTime(), p.y]);',
     },
   ];
@@ -296,6 +297,7 @@ function buildMainApexCardConfig(cfg, apex) {
       name: 'SOC (projection clear sky)',
       yaxis_id: 'soc',
       stroke_dash: 6,
+      extend_to: false,
       data_generator: 'return (entity.attributes.apex_series?.soc_projection_clear || []).map(p => [new Date(p.x).getTime(), p.y]);',
     });
   }
@@ -306,6 +308,7 @@ function buildMainApexCardConfig(cfg, apex) {
         name: 'Sun elevation (history)',
         yaxis_id: 'sun',
         color: 'var(--warning-color)',
+        extend_to: false,
         data_generator: 'return (entity.attributes.apex_series?.sun_history || []).map(p => [new Date(p.x).getTime(), p.y]);',
       },
       {
@@ -314,6 +317,7 @@ function buildMainApexCardConfig(cfg, apex) {
         yaxis_id: 'sun',
         color: 'var(--warning-color)',
         stroke_dash: 6,
+        extend_to: false,
         data_generator: 'return (entity.attributes.apex_series?.sun_forecast || []).map(p => [new Date(p.x).getTime(), p.y]);',
       },
     );
@@ -353,7 +357,6 @@ function buildMainApexCardConfig(cfg, apex) {
       tooltip: { shared: true, intersect: false },
       xaxis: {
         type: 'datetime',
-        ...(xWindow || {}),
         labels: { datetimeUTC: false, format: 'dd MMM HH:mm' },
       },
       stroke: { curve: 'smooth' },
@@ -379,7 +382,6 @@ function buildPowerApexCardConfig(cfg, apex) {
   };
 
   const nowTs = Number.isFinite(Date.parse(apex.now || '')) ? Date.parse(apex.now) : null;
-  const xWindow = computeXWindow(apex);
   const spanWindow = computeSpanWindow(apex, nowTs);
   const source = (apex.power_observed || []).concat(apex.power_modeled || [], apex.power_consumption || []);
   const [powMin, powMax] = range(source, -1, 1);
@@ -414,7 +416,6 @@ function buildPowerApexCardConfig(cfg, apex) {
       tooltip: { shared: true, intersect: false },
       xaxis: {
         type: 'datetime',
-        ...(xWindow || {}),
         labels: { datetimeUTC: false, format: 'dd MMM HH:mm' },
       },
       stroke: { curve: 'smooth' },
@@ -433,18 +434,21 @@ function buildPowerApexCardConfig(cfg, apex) {
         entity: cfg.entity,
         name: 'Net W (observed)',
         yaxis_id: 'power',
+        extend_to: false,
         data_generator: 'return (entity.attributes.apex_series?.power_observed || []).map(p => [new Date(p.x).getTime(), p.y]);',
       },
       {
         entity: cfg.entity,
         name: 'Net W (modeled)',
         yaxis_id: 'power',
+        extend_to: false,
         data_generator: 'return (entity.attributes.apex_series?.power_modeled || []).map(p => [new Date(p.x).getTime(), p.y]);',
       },
       {
         entity: cfg.entity,
         name: 'Load W',
         yaxis_id: 'power',
+        extend_to: false,
         data_generator: 'return (entity.attributes.apex_series?.power_consumption || []).map(p => [new Date(p.x).getTime(), p.y]);',
       },
     ],
