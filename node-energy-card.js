@@ -43,6 +43,8 @@ class BatteryTelemetryCard extends HTMLElement {
     const valid = getValidEntities(this._hass);
     const entity = this._config.entity;
     const hasEntityState = !!(entity && this._hass.states[entity]);
+    const stateObj = hasEntityState ? this._hass.states[entity] : null;
+    const hasApex = !!(stateObj && stateObj.attributes && stateObj.attributes.apex_series);
 
     if (!entity || (!valid.includes(entity) && !hasEntityState)) {
       this.innerHTML = `
@@ -57,7 +59,19 @@ class BatteryTelemetryCard extends HTMLElement {
       return;
     }
 
-    const st = this._hass.states[entity];
+    if (hasEntityState && !hasApex) {
+      this.innerHTML = `
+        <ha-card header="${escapeHtml(this._config.title)}">
+          <div class="card-content">
+            Selected entity <code>${escapeHtml(entity)}</code> exists but does not expose <code>apex_series</code>.
+            Select the integration output sensor (Battery Telemetry Forecast), not the raw battery sensor.
+          </div>
+        </ha-card>
+      `;
+      return;
+    }
+
+    const st = stateObj;
     const apex = (st && st.attributes && st.attributes.apex_series) || {};
     const cardConfig = buildCardConfig(this._config, apex);
 
@@ -111,12 +125,13 @@ class BatteryTelemetryCardEditor extends HTMLElement {
   _render() {
     if (!this._hass || !this._config) return;
     const valid = getValidEntities(this._hass);
+    const options = valid.length ? valid : getAllSensorEntities(this._hass);
 
-    if (this._config.entity && !valid.includes(this._config.entity)) {
+    if (this._config.entity && !options.includes(this._config.entity)) {
       this._config.entity = '';
     }
-    if (!this._config.entity && valid[0]) {
-      this._config.entity = valid[0];
+    if (!this._config.entity && options[0]) {
+      this._config.entity = options[0];
     }
 
     this.innerHTML = `
@@ -146,7 +161,7 @@ class BatteryTelemetryCardEditor extends HTMLElement {
         <div class="row">
           <label>Battery Telemetry sensor</label>
           <select id="entity">
-            ${valid.map((eid) => `<option value="${escapeHtml(eid)}" ${eid === this._config.entity ? 'selected' : ''}>${escapeHtml(eid)}</option>`).join('')}
+            ${options.map((eid) => `<option value="${escapeHtml(eid)}" ${eid === this._config.entity ? 'selected' : ''}>${escapeHtml(eid)}</option>`).join('')}
           </select>
         </div>
         <div class="row">
@@ -436,6 +451,12 @@ function getValidEntities(hass) {
       return !!(a.apex_series || a.history_soc || a.forecast || a.model || a.meta);
     })
     .map(([eid]) => eid)
+    .sort();
+}
+
+function getAllSensorEntities(hass) {
+  return Object.keys((hass && hass.states) || {})
+    .filter((eid) => eid.startsWith('sensor.'))
     .sort();
 }
 
