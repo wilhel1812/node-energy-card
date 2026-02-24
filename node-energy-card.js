@@ -16,11 +16,21 @@ class BatteryTelemetryCard extends HTMLElement {
 
   setConfig(config) {
     this._config = normalizeConfig(config);
+    this._configKey = JSON.stringify(this._config);
     this._render();
   }
 
   set hass(hass) {
     this._hass = hass;
+    const entity = this._config?.entity;
+    const st = entity ? hass.states[entity] : null;
+    const stamp = st ? `${st.last_updated}|${st.state}` : 'none';
+    if (this._inner && stamp === this._lastStamp && this._lastConfigKey === this._configKey) {
+      this._inner.hass = hass;
+      return;
+    }
+    this._lastStamp = stamp;
+    this._lastConfigKey = this._configKey;
     this._render();
   }
 
@@ -211,6 +221,7 @@ function buildApexCardConfig(cfg, apex) {
   const sunSource = (apex.sun_history || []).concat(apex.sun_forecast || []);
   const [powMin, powMax] = range(powerSource, -1, 1, 0.14);
   const [sunMin, sunMax] = range(sunSource, -90, 90, 0.08);
+  const nowTs = Number.isFinite(Date.parse(apex.now || '')) ? Date.parse(apex.now) : null;
 
   const yaxis = [
     {
@@ -247,12 +258,14 @@ function buildApexCardConfig(cfg, apex) {
       entity: cfg.entity,
       name: 'SOC (history)',
       yaxis_id: 'soc',
+      color: 'var(--primary-color)',
       data_generator: 'return (entity.attributes.apex_series?.soc_actual || []).map(p => [new Date(p.x).getTime(), p.y]);',
     },
     {
       entity: cfg.entity,
       name: 'SOC (projection weather)',
       yaxis_id: 'soc',
+      color: 'var(--primary-color)',
       data_generator: 'return (entity.attributes.apex_series?.soc_projection_weather || []).map(p => [new Date(p.x).getTime(), p.y]);',
     },
   ];
@@ -294,12 +307,14 @@ function buildApexCardConfig(cfg, apex) {
         entity: cfg.entity,
         name: 'Sun elevation (history)',
         yaxis_id: 'sun',
+        color: 'var(--warning-color)',
         data_generator: 'return (entity.attributes.apex_series?.sun_history || []).map(p => [new Date(p.x).getTime(), p.y]);',
       },
       {
         entity: cfg.entity,
         name: 'Sun elevation (forecast)',
         yaxis_id: 'sun',
+        color: 'var(--warning-color)',
         stroke_dash: 6,
         data_generator: 'return (entity.attributes.apex_series?.sun_forecast || []).map(p => [new Date(p.x).getTime(), p.y]);',
       },
@@ -315,6 +330,21 @@ function buildApexCardConfig(cfg, apex) {
       chart: {
         height: '520px',
         toolbar: { show: true },
+      },
+      annotations: {
+        xaxis: nowTs
+          ? [
+              {
+                x: nowTs,
+                borderColor: '#00BCD4',
+                strokeDashArray: 4,
+                label: {
+                  text: 'Now',
+                  style: { color: '#fff', background: '#00BCD4' },
+                },
+              },
+            ]
+          : [],
       },
       legend: {
         show: true,
@@ -393,6 +423,8 @@ if (!customElements.get('node-energy-card-editor')) {
   };
 
   upsert();
+  setTimeout(upsert, 1000);
+  setTimeout(upsert, 3000);
   window.addEventListener('ll-rebuild', upsert);
   window.addEventListener('location-changed', upsert);
 })();
