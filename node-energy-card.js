@@ -492,12 +492,14 @@ if (!customElements.get('node-energy-card-editor')) {
     {
       type: 'battery-telemetry-card',
       name: 'Battery Telemetry',
+      icon: 'mdi:battery-heart-variant',
       preview: true,
       description: 'Chart card for battery telemetry history + forecast.',
     },
     {
       type: 'node-energy-card',
       name: 'Battery Telemetry (Legacy Alias)',
+      icon: 'mdi:battery-heart-variant',
       preview: false,
       description: 'Legacy alias for Battery Telemetry card.',
     },

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Battery Telemetry Card">
+  <rect x="10" y="18" width="108" height="92" rx="14" fill="#0f172a"/>
+  <rect x="18" y="28" width="92" height="18" rx="6" fill="#1e293b"/>
+  <rect x="18" y="52" width="92" height="48" rx="8" fill="#111827"/>
+  <path d="M24 88l18-16 14 8 18-20 18 14" fill="none" stroke="#34d399" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="72" y1="52" x2="72" y2="100" stroke="#22d3ee" stroke-width="4" stroke-dasharray="5 5"/>
+</svg>
