@@ -17,12 +17,10 @@ type: custom:battery-telemetry-card
 
 Configure in UI editor:
 1. Pick your Battery Telemetry sensor (dropdown is filtered to valid entities only).
-2. Toggle which groups to show (power/sun/clear-sky).
+2. Toggle which groups to show (`power`, `sun`, `clear-sky`).
 3. Save. No raw YAML templates required.
 
 Backward-compatible aliases still work:
 - `custom:node-energy-card`
-- `custom:battery-telemetry-setup-card`
-- `custom:node-energy-setup-card`
 
 This project is independent and not affiliated with Meshtastic.
