@@ -466,26 +466,50 @@ if (!customElements.get('node-energy-setup-card-editor')) {
 }
 
 function registerCustomCardsMeta() {
-  window.customCards = window.customCards || [];
-  const upsert = (meta) => {
+  const metas = [
+    {
+      type: 'battery-telemetry-card',
+      name: 'Battery Telemetry',
+      preview: true,
+      description: 'Chart card for battery telemetry history + forecast powered by the Battery Telemetry Forecast integration.',
+    },
+    {
+      type: 'node-energy-card',
+      name: 'Battery Telemetry (Legacy Alias)',
+      preview: false,
+      description: 'Legacy alias for Battery Telemetry card.',
+    },
+  ];
+  window.__batteryTelemetryCardMeta = metas;
+
+  window.customCards = Array.isArray(window.customCards) ? window.customCards : [];
+  for (const meta of metas) {
     if (!window.customCards.some((c) => c && c.type === meta.type)) {
       window.customCards.push(meta);
     }
+  }
+}
+
+function installCustomCardsMetaGuard() {
+  let runs = 0;
+  const maxRuns = 120; // keep alive for ~60s after load
+  const tick = () => {
+    registerCustomCardsMeta();
+    runs += 1;
+    if (runs >= maxRuns) {
+      clearInterval(timer);
+    }
   };
-  upsert({
-    type: 'battery-telemetry-card',
-    name: 'Battery Telemetry',
-    preview: true,
-    description: 'Chart card for battery telemetry history + forecast powered by the Battery Telemetry Forecast integration.',
-  });
-  upsert({
-    type: 'node-energy-card',
-    name: 'Battery Telemetry (Legacy Alias)',
-    preview: false,
-    description: 'Legacy alias for Battery Telemetry card.',
+  const timer = setInterval(tick, 500);
+  tick();
+
+  window.addEventListener('ll-rebuild', registerCustomCardsMeta);
+  window.addEventListener('location-changed', registerCustomCardsMeta);
+  window.addEventListener('hashchange', registerCustomCardsMeta);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) registerCustomCardsMeta();
   });
 }
 
 registerCustomCardsMeta();
-setTimeout(registerCustomCardsMeta, 1000);
-setTimeout(registerCustomCardsMeta, 3000);
+installCustomCardsMetaGuard();
