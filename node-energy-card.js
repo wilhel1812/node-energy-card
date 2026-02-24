@@ -221,7 +221,6 @@ class BatteryTelemetryCardEditor extends HTMLElement {
 }
 
 function buildApexCardConfig(cfg) {
-  const entity = cfg.entity;
   const showPower = !!cfg.show_power;
   const showSun = !!cfg.show_sun;
   const showClear = !!cfg.show_clear;
@@ -269,13 +268,11 @@ function buildApexCardConfig(cfg) {
 
   const series = [
     {
-      entity,
       name: 'SOC (history)',
       yaxis_id: 'soc',
       data: mapPoints(apex.soc_actual),
     },
     {
-      entity,
       name: 'SOC (projection weather)',
       yaxis_id: 'soc',
       data: mapPoints(apex.soc_projection_weather),
@@ -284,7 +281,6 @@ function buildApexCardConfig(cfg) {
 
   if (showClear) {
     series.push({
-      entity,
       name: 'SOC (projection clear sky)',
       yaxis_id: 'soc',
       stroke_dash: 6,
@@ -295,19 +291,16 @@ function buildApexCardConfig(cfg) {
   if (showPower) {
     series.push(
       {
-        entity,
         name: 'Net W (observed)',
         yaxis_id: 'power',
         data: mapPoints(apex.power_observed),
       },
       {
-        entity,
         name: 'Net W (modeled)',
         yaxis_id: 'power',
         data: mapPoints(apex.power_modeled),
       },
       {
-        entity,
         name: 'Load W',
         yaxis_id: 'power',
         data: mapPoints(apex.power_consumption),
@@ -318,13 +311,11 @@ function buildApexCardConfig(cfg) {
   if (showSun) {
     series.push(
       {
-        entity,
         name: 'Sun elevation (history)',
         yaxis_id: 'sun',
         data: mapPoints(apex.sun_history),
       },
       {
-        entity,
         name: 'Sun elevation (forecast)',
         yaxis_id: 'sun',
         stroke_dash: 6,
