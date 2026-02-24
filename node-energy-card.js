@@ -41,29 +41,13 @@ class BatteryTelemetryCard extends HTMLElement {
     return 10;
   }
 
-  // Let HA Sections view allocate enough vertical space.
-  getGridOptions() {
-    return {
-      columns: 12,
-      min_columns: 6,
-      rows: 12,
-      min_rows: 8,
-    };
-  }
-
   _ensureRoot() {
     if (this.shadowRoot) return;
     const root = this.attachShadow({ mode: 'open' });
     root.innerHTML = `
       <style>
-        :host {
-          display: block;
-          min-height: 70vh;
-        }
-        .wrap {
-          display: block;
-          min-height: 70vh;
-        }
+        :host { display: block; }
+        .wrap { display: block; }
       </style>
       <div class="wrap" id="wrap"></div>
     `;
