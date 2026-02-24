@@ -298,7 +298,11 @@ function buildMainApexCardConfig(cfg, apex) {
     return [mn - span * pad, mx + span * pad];
   };
 
-  const socSource = (apex.soc_actual || []).concat(apex.soc_projection_weather || [], apex.soc_projection_clear || []);
+  const socSource = (apex.soc_actual || []).concat(
+    apex.soc_projection_weather || [],
+    apex.soc_projection_clear || [],
+    apex.soc_projection_no_sun || [],
+  );
   const [socMinRaw, socMaxRaw] = range(socSource, 0, 100, 0.08);
   const socMin = Math.max(0, socMinRaw);
   const socMax = Math.min(100, socMaxRaw);
@@ -376,6 +380,9 @@ function buildMainApexCardConfig(cfg, apex) {
       data_generator: `
         const a = entity.attributes || {};
         const ap = a.apex_series || {};
+        if (Array.isArray(ap.soc_projection_no_sun) && ap.soc_projection_no_sun.length) {
+          return ap.soc_projection_no_sun.map(p => [new Date(p.x).getTime(), p.y]);
+        }
         const fc = a.forecast || {};
         const m = a.meta || {};
         const model = a.model || {};
