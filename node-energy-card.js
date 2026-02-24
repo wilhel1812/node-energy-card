@@ -35,7 +35,7 @@ class BatteryTelemetryCard extends HTMLElement {
   }
 
   getCardSize() {
-    return 8;
+    return this._config?.show_power ? 12 : 8;
   }
 
   async _render() {
@@ -58,15 +58,15 @@ class BatteryTelemetryCard extends HTMLElement {
 
     const st = this._hass.states[entity];
     const apex = (st && st.attributes && st.attributes.apex_series) || {};
-    const apexConfig = buildApexCardConfig(this._config, apex);
+    const cardConfig = buildCardConfig(this._config, apex);
 
     try {
       if (!this._inner || typeof this._inner.setConfig !== 'function') {
-        this._inner = await createCardElement(this._hass, apexConfig);
+        this._inner = await createCardElement(this._hass, cardConfig);
         this.innerHTML = '';
         this.appendChild(this._inner);
       } else {
-        this._inner.setConfig(apexConfig);
+        this._inner.setConfig(cardConfig);
       }
       this._inner.hass = this._hass;
     } catch (err) {
@@ -193,7 +193,21 @@ function normalizeConfig(config) {
   };
 }
 
-function buildApexCardConfig(cfg, apex) {
+function buildCardConfig(cfg, apex) {
+  const main = buildMainApexCardConfig(cfg, apex);
+  if (!cfg.show_power) {
+    return main;
+  }
+  return {
+    type: 'vertical-stack',
+    cards: [
+      main,
+      buildPowerApexCardConfig(cfg, apex),
+    ],
+  };
+}
+
+function buildMainApexCardConfig(cfg, apex) {
   const vals = (arr) => (arr || []).map((p) => Number(p.y)).filter(Number.isFinite);
   const range = (arr, fallbackMin, fallbackMax, pad = 0.1) => {
     const ys = vals(arr);
@@ -217,9 +231,7 @@ function buildApexCardConfig(cfg, apex) {
   const socMin = Math.max(0, socMinRaw);
   const socMax = Math.min(100, socMaxRaw);
 
-  const powerSource = (apex.power_observed || []).concat(apex.power_modeled || [], apex.power_consumption || []);
   const sunSource = (apex.sun_history || []).concat(apex.sun_forecast || []);
-  const [powMin, powMax] = range(powerSource, -1, 1, 0.14);
   const [sunMin, sunMax] = range(sunSource, -90, 90, 0.08);
   const nowTs = Number.isFinite(Date.parse(apex.now || '')) ? Date.parse(apex.now) : null;
 
@@ -232,16 +244,6 @@ function buildApexCardConfig(cfg, apex) {
       title: { text: 'SOC %' },
     },
   ];
-  if (cfg.show_power) {
-    yaxis.push({
-      id: 'power',
-      opposite: true,
-      min: powMin,
-      max: powMax,
-      decimalsInFloat: 1,
-      title: { text: 'Power W' },
-    });
-  }
   if (cfg.show_sun) {
     yaxis.push({
       id: 'sun',
@@ -279,28 +281,6 @@ function buildApexCardConfig(cfg, apex) {
       data_generator: 'return (entity.attributes.apex_series?.soc_projection_clear || []).map(p => [new Date(p.x).getTime(), p.y]);',
     });
   }
-  if (cfg.show_power) {
-    series.push(
-      {
-        entity: cfg.entity,
-        name: 'Net W (observed)',
-        yaxis_id: 'power',
-        data_generator: 'return (entity.attributes.apex_series?.power_observed || []).map(p => [new Date(p.x).getTime(), p.y]);',
-      },
-      {
-        entity: cfg.entity,
-        name: 'Net W (modeled)',
-        yaxis_id: 'power',
-        data_generator: 'return (entity.attributes.apex_series?.power_modeled || []).map(p => [new Date(p.x).getTime(), p.y]);',
-      },
-      {
-        entity: cfg.entity,
-        name: 'Load W',
-        yaxis_id: 'power',
-        data_generator: 'return (entity.attributes.apex_series?.power_consumption || []).map(p => [new Date(p.x).getTime(), p.y]);',
-      },
-    );
-  }
   if (cfg.show_sun) {
     series.push(
       {
@@ -328,7 +308,7 @@ function buildApexCardConfig(cfg, apex) {
     now: { show: true, label: 'Now' },
     apex_config: {
       chart: {
-        height: '520px',
+        height: cfg.show_power ? '420px' : '560px',
         toolbar: { show: true },
       },
       annotations: {
@@ -360,6 +340,90 @@ function buildApexCardConfig(cfg, apex) {
       yaxis,
     },
     series,
+  };
+}
+
+function buildPowerApexCardConfig(cfg, apex) {
+  const vals = (arr) => (arr || []).map((p) => Number(p.y)).filter(Number.isFinite);
+  const range = (arr, fallbackMin, fallbackMax, pad = 0.12) => {
+    const ys = vals(arr);
+    if (!ys.length) return [fallbackMin, fallbackMax];
+    let mn = Math.min(...ys);
+    let mx = Math.max(...ys);
+    if (mn === mx) {
+      mn -= 1;
+      mx += 1;
+    }
+    const span = mx - mn;
+    return [mn - span * pad, mx + span * pad];
+  };
+
+  const nowTs = Number.isFinite(Date.parse(apex.now || '')) ? Date.parse(apex.now) : null;
+  const source = (apex.power_observed || []).concat(apex.power_modeled || [], apex.power_consumption || []);
+  const [powMin, powMax] = range(source, -1, 1);
+
+  return {
+    type: 'custom:apexcharts-card',
+    header: { show: false },
+    update_interval: '5min',
+    now: { show: true, label: 'Now' },
+    apex_config: {
+      chart: {
+        height: '280px',
+        toolbar: { show: false },
+      },
+      annotations: {
+        xaxis: nowTs
+          ? [
+              {
+                x: nowTs,
+                borderColor: '#00BCD4',
+                strokeDashArray: 4,
+              },
+            ]
+          : [],
+      },
+      legend: {
+        show: true,
+        position: 'top',
+      },
+      dataLabels: { enabled: false },
+      tooltip: { shared: true, intersect: false },
+      xaxis: {
+        type: 'datetime',
+        labels: { datetimeUTC: false, format: 'dd MMM HH:mm' },
+      },
+      stroke: { curve: 'smooth' },
+      yaxis: [
+        {
+          id: 'power',
+          min: powMin,
+          max: powMax,
+          decimalsInFloat: 1,
+          title: { text: 'Power W' },
+        },
+      ],
+    },
+    series: [
+      {
+        entity: cfg.entity,
+        name: 'Net W (observed)',
+        yaxis_id: 'power',
+        data_generator: 'return (entity.attributes.apex_series?.power_observed || []).map(p => [new Date(p.x).getTime(), p.y]);',
+      },
+      {
+        entity: cfg.entity,
+        name: 'Net W (modeled)',
+        yaxis_id: 'power',
+        data_generator: 'return (entity.attributes.apex_series?.power_modeled || []).map(p => [new Date(p.x).getTime(), p.y]);',
+      },
+      {
+        entity: cfg.entity,
+        name: 'Load W',
+        yaxis_id: 'power',
+        data_generator: 'return (entity.attributes.apex_series?.power_consumption || []).map(p => [new Date(p.x).getTime(), p.y]);',
+      },
+    ],
   };
 }
 
