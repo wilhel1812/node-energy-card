@@ -452,24 +452,96 @@ function buildPowerApexCardConfig(cfg, apex) {
     series: [
       {
         entity: cfg.entity,
-        name: 'Net W (observed)',
+        name: 'Net W (weather)',
         yaxis_id: 'power',
         extend_to: false,
-        data_generator: 'return (entity.attributes.apex_series?.power_observed || []).map(p => [new Date(p.x).getTime(), p.y]);',
+        data_generator: `
+          const a = entity.attributes || {};
+          const ap = a.apex_series || {};
+          const model = a.model || {};
+          const fc = a.forecast || {};
+          const load = Number(model.load_w || 0);
+          const peak = Number(model.solar_peak_w || 0);
+          const out = [];
+          const seen = new Set();
+
+          for (const p of (ap.power_observed || [])) {
+            const t = new Date(p.x).getTime();
+            if (!Number.isFinite(t) || seen.has(t)) continue;
+            seen.add(t);
+            out.push([t, p.y]);
+          }
+
+          const ts = fc.times || [];
+          const sp = fc.solar_proxy || [];
+          const wf = fc.weather_factor || [];
+          for (let i = 0; i < ts.length; i++) {
+            const t = new Date(ts[i]).getTime();
+            if (!Number.isFinite(t) || seen.has(t)) continue;
+            seen.add(t);
+            const net = -load + peak * Number(sp[i] || 0) * Number(wf[i] ?? 1);
+            out.push([t, net]);
+          }
+
+          out.sort((x, y) => x[0] - y[0]);
+          return out;
+        `,
       },
-      {
+      ...(cfg.show_clear ? [{
         entity: cfg.entity,
-        name: 'Net W (modeled)',
+        name: 'Net W (clear)',
         yaxis_id: 'power',
+        stroke_dash: 6,
         extend_to: false,
-        data_generator: 'return (entity.attributes.apex_series?.power_modeled || []).map(p => [new Date(p.x).getTime(), p.y]);',
-      },
+        data_generator: `
+          const a = entity.attributes || {};
+          const model = a.model || {};
+          const fc = a.forecast || {};
+          const load = Number(model.load_w || 0);
+          const peak = Number(model.solar_peak_w || 0);
+          const ts = fc.times || [];
+          const sp = fc.solar_proxy || [];
+          const out = [];
+          for (let i = 0; i < ts.length; i++) {
+            const t = new Date(ts[i]).getTime();
+            if (!Number.isFinite(t)) continue;
+            out.push([t, -load + peak * Number(sp[i] || 0)]);
+          }
+          out.sort((x, y) => x[0] - y[0]);
+          return out;
+        `,
+      }] : []),
       {
         entity: cfg.entity,
         name: 'Load W',
         yaxis_id: 'power',
         extend_to: false,
-        data_generator: 'return (entity.attributes.apex_series?.power_consumption || []).map(p => [new Date(p.x).getTime(), p.y]);',
+        data_generator: `
+          const a = entity.attributes || {};
+          const ap = a.apex_series || {};
+          const model = a.model || {};
+          const fc = a.forecast || {};
+          const load = Number(model.load_w || 0);
+          const out = [];
+          const seen = new Set();
+
+          for (const p of (ap.power_consumption || [])) {
+            const t = new Date(p.x).getTime();
+            if (!Number.isFinite(t) || seen.has(t)) continue;
+            seen.add(t);
+            out.push([t, p.y]);
+          }
+
+          for (const x of (fc.times || [])) {
+            const t = new Date(x).getTime();
+            if (!Number.isFinite(t) || seen.has(t)) continue;
+            seen.add(t);
+            out.push([t, load]);
+          }
+
+          out.sort((x, y) => x[0] - y[0]);
+          return out;
+        `,
       },
     ],
   };
