@@ -370,6 +370,8 @@ function buildMainApexCardConfig(cfg, apex) {
       name: 'Sun elevation',
       yaxis_id: 'sun',
       color: 'var(--warning-color)',
+      stroke_width: 1.5,
+      opacity: 0.35,
       extend_to: false,
       data_generator: `
         const a = entity.attributes.apex_series || {};
