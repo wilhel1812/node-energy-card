@@ -241,6 +241,43 @@ function buildApexCardConfig(cfg) {
   const showPower = !!cfg.show_power;
   const showSun = !!cfg.show_sun;
   const showClear = !!cfg.show_clear;
+  const apex = cfg.apex_series || {};
+  const vals = (arr) => (arr || []).map((p) => Number(p.y)).filter((v) => Number.isFinite(v));
+  const range = (arr, fallbackMin, fallbackMax, pad = 0.12) => {
+    const ys = vals(arr);
+    if (!ys.length) return [fallbackMin, fallbackMax];
+    let mn = Math.min(...ys);
+    let mx = Math.max(...ys);
+    if (mn === mx) {
+      mn -= 1;
+      mx += 1;
+    }
+    const span = mx - mn;
+    return [mn - span * pad, mx + span * pad];
+  };
+
+  const socPoints = [
+    ...(apex.soc_actual || []),
+    ...(apex.soc_projection_weather || []),
+    ...(showClear ? (apex.soc_projection_clear || []) : []),
+  ];
+  const powerPoints = showPower
+    ? [
+        ...(apex.power_observed || []),
+        ...(apex.power_modeled || []),
+        ...(apex.power_consumption || []),
+      ]
+    : [];
+  const sunPoints = showSun
+    ? [
+        ...(apex.sun_history || []),
+        ...(apex.sun_forecast || []),
+      ]
+    : [];
+
+  const [socMin, socMax] = range(socPoints, 0, 100, 0.08);
+  const [powMin, powMax] = range(powerPoints, -1, 1, 0.14);
+  const [sunMin, sunMax] = range(sunPoints, -90, 90, 0.08);
 
   const series = [
     {
@@ -322,11 +359,12 @@ function buildApexCardConfig(cfg) {
     apex_config: {
       chart: {
         height: '82vh',
+        parentHeightOffset: 0,
         toolbar: { show: true },
       },
       legend: {
         show: true,
-        position: 'bottom',
+        position: 'top',
       },
       dataLabels: { enabled: false },
       tooltip: {
@@ -346,22 +384,24 @@ function buildApexCardConfig(cfg) {
       yaxis: [
         {
           id: 'soc',
-          min: 0,
-          max: 100,
-          decimalsInFloat: 0,
+          min: Math.max(0, socMin),
+          max: Math.min(100, socMax),
+          decimalsInFloat: 1,
           title: { text: 'SOC %' },
         },
         {
           id: 'power',
           opposite: true,
+          min: powMin,
+          max: powMax,
           decimalsInFloat: 1,
           title: { text: 'Power W' },
         },
         {
           id: 'sun',
           opposite: true,
-          min: -90,
-          max: 90,
+          min: sunMin,
+          max: sunMax,
           decimalsInFloat: 0,
           title: { text: 'Sun elev °' },
         },
