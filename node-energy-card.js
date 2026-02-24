@@ -251,6 +251,7 @@ function buildMainApexCardConfig(cfg, apex) {
   const [sunMin, sunMax] = range(sunSource, -90, 90, 0.08);
   const nowTs = Number.isFinite(Date.parse(apex.now || '')) ? Date.parse(apex.now) : null;
   const xWindow = computeXWindow(apex);
+  const spanWindow = computeSpanWindow(apex, nowTs);
 
   const yaxis = [
     {
@@ -322,6 +323,7 @@ function buildMainApexCardConfig(cfg, apex) {
     type: 'custom:apexcharts-card',
     header: { show: true, title: cfg.title },
     update_interval: '5min',
+    ...(spanWindow || {}),
     now: { show: true, label: 'Now' },
     apex_config: {
       chart: {
@@ -378,6 +380,7 @@ function buildPowerApexCardConfig(cfg, apex) {
 
   const nowTs = Number.isFinite(Date.parse(apex.now || '')) ? Date.parse(apex.now) : null;
   const xWindow = computeXWindow(apex);
+  const spanWindow = computeSpanWindow(apex, nowTs);
   const source = (apex.power_observed || []).concat(apex.power_modeled || [], apex.power_consumption || []);
   const [powMin, powMax] = range(source, -1, 1);
 
@@ -385,6 +388,7 @@ function buildPowerApexCardConfig(cfg, apex) {
     type: 'custom:apexcharts-card',
     header: { show: false },
     update_interval: '5min',
+    ...(spanWindow || {}),
     now: { show: true, label: 'Now' },
     apex_config: {
       chart: {
@@ -469,6 +473,24 @@ function computeXWindow(apex) {
   }
   if (!ts.length) return null;
   return { min: Math.min(...ts), max: Math.max(...ts) };
+}
+
+function computeSpanWindow(apex, nowTs) {
+  const xw = computeXWindow(apex);
+  if (!xw) return null;
+  const min = Number(xw.min);
+  const max = Number(xw.max);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return null;
+
+  const spanHours = Math.max(1, Math.ceil((max - min) / 3600000));
+  const out = { graph_span: `${spanHours}h` };
+
+  const ref = Number.isFinite(nowTs) ? nowTs : Date.now();
+  const futureHours = Math.ceil((max - ref) / 3600000);
+  if (futureHours > 0) {
+    out.span = { end: 'hour', offset: `+${futureHours}h` };
+  }
+  return out;
 }
 
 function getValidEntities(hass) {
