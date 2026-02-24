@@ -6,7 +6,6 @@ class BatteryTelemetryCard extends HTMLElement {
       show_power: false,
       show_sun: false,
       show_clear: false,
-      scale_mode: 'history_focus',
     };
   }
 
@@ -164,13 +163,6 @@ class BatteryTelemetryCardEditor extends HTMLElement {
             ${options.map((eid) => `<option value="${escapeHtml(eid)}" ${eid === this._config.entity ? 'selected' : ''}>${escapeHtml(eid)}</option>`).join('')}
           </select>
         </div>
-        <div class="row">
-          <label>Scale mode</label>
-          <select id="scale_mode">
-            <option value="history_focus" ${this._config.scale_mode === 'history_focus' ? 'selected' : ''}>History focus</option>
-            <option value="absolute" ${this._config.scale_mode === 'absolute' ? 'selected' : ''}>Absolute SOC (0-100)</option>
-          </select>
-        </div>
         <div class="checks">
           <label class="check"><input id="show_power" type="checkbox" ${this._config.show_power ? 'checked' : ''}/>Show power series</label>
           <label class="check"><input id="show_sun" type="checkbox" ${this._config.show_sun ? 'checked' : ''}/>Show sun elevation series</label>
@@ -181,7 +173,6 @@ class BatteryTelemetryCardEditor extends HTMLElement {
 
     this.querySelector('#title')?.addEventListener('change', (ev) => this._set({ title: ev.target.value }));
     this.querySelector('#entity')?.addEventListener('change', (ev) => this._set({ entity: ev.target.value }));
-    this.querySelector('#scale_mode')?.addEventListener('change', (ev) => this._set({ scale_mode: ev.target.value }));
     this.querySelector('#show_power')?.addEventListener('change', (ev) => this._set({ show_power: !!ev.target.checked }));
     this.querySelector('#show_sun')?.addEventListener('change', (ev) => this._set({ show_sun: !!ev.target.checked }));
     this.querySelector('#show_clear')?.addEventListener('change', (ev) => this._set({ show_clear: !!ev.target.checked }));
@@ -204,7 +195,6 @@ function normalizeConfig(config) {
     show_power: false,
     show_sun: false,
     show_clear: false,
-    scale_mode: 'history_focus',
     ...(config || {}),
   };
 }
@@ -238,14 +228,8 @@ function buildMainApexCardConfig(cfg, apex) {
     return [mn - span * pad, mx + span * pad];
   };
 
-  const history = apex.soc_actual || [];
-  const socRangeSource = cfg.scale_mode === 'absolute' ? [] : history;
-
-  const [socMinRaw, socMaxRaw] = cfg.scale_mode === 'absolute'
-    ? [0, 100]
-    : range(socRangeSource, 0, 100, 0.08);
-  const socMin = Math.max(0, socMinRaw);
-  const socMax = Math.min(100, socMaxRaw);
+  const socMin = 0;
+  const socMax = 100;
 
   const sunSource = (apex.sun_history || []).concat(apex.sun_forecast || []);
   const [sunMin, sunMax] = range(sunSource, -90, 90, 0.08);
