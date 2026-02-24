@@ -3,9 +3,9 @@ class BatteryTelemetryCard extends HTMLElement {
     return {
       entity: pickDefaultEntity(hass),
       title: 'Battery Telemetry',
-      show_power: true,
-      show_sun: true,
-      show_clear: true,
+      show_power: false,
+      show_sun: false,
+      show_clear: false,
     };
   }
 
@@ -17,9 +17,9 @@ class BatteryTelemetryCard extends HTMLElement {
     this._config = {
       entity: '',
       title: 'Battery Telemetry',
-      show_power: true,
-      show_sun: true,
-      show_clear: true,
+      show_power: false,
+      show_sun: false,
+      show_clear: false,
       ...config,
     };
     this._ensureRoot();
@@ -128,9 +128,9 @@ class BatteryTelemetryCardEditor extends HTMLElement {
     this._config = {
       entity: '',
       title: 'Battery Telemetry',
-      show_power: true,
-      show_sun: true,
-      show_clear: true,
+      show_power: false,
+      show_sun: false,
+      show_clear: false,
       ...config,
     };
     this._render();
@@ -268,42 +268,48 @@ function buildApexCardConfig(cfg) {
 
   const series = [
     {
+      entity: cfg.entity,
       name: 'SOC (history)',
       yaxis_id: 'soc',
-      data: mapPoints(apex.soc_actual),
+      data_generator: 'return (entity.attributes.apex_series?.soc_actual || []).map(p => [new Date(p.x).getTime(), p.y]);',
     },
     {
+      entity: cfg.entity,
       name: 'SOC (projection weather)',
       yaxis_id: 'soc',
-      data: mapPoints(apex.soc_projection_weather),
+      data_generator: 'return (entity.attributes.apex_series?.soc_projection_weather || []).map(p => [new Date(p.x).getTime(), p.y]);',
     },
   ];
 
   if (showClear) {
     series.push({
+      entity: cfg.entity,
       name: 'SOC (projection clear sky)',
       yaxis_id: 'soc',
       stroke_dash: 6,
-      data: mapPoints(apex.soc_projection_clear),
+      data_generator: 'return (entity.attributes.apex_series?.soc_projection_clear || []).map(p => [new Date(p.x).getTime(), p.y]);',
     });
   }
 
   if (showPower) {
     series.push(
       {
+        entity: cfg.entity,
         name: 'Net W (observed)',
         yaxis_id: 'power',
-        data: mapPoints(apex.power_observed),
+        data_generator: 'return (entity.attributes.apex_series?.power_observed || []).map(p => [new Date(p.x).getTime(), p.y]);',
       },
       {
+        entity: cfg.entity,
         name: 'Net W (modeled)',
         yaxis_id: 'power',
-        data: mapPoints(apex.power_modeled),
+        data_generator: 'return (entity.attributes.apex_series?.power_modeled || []).map(p => [new Date(p.x).getTime(), p.y]);',
       },
       {
+        entity: cfg.entity,
         name: 'Load W',
         yaxis_id: 'power',
-        data: mapPoints(apex.power_consumption),
+        data_generator: 'return (entity.attributes.apex_series?.power_consumption || []).map(p => [new Date(p.x).getTime(), p.y]);',
       },
     );
   }
@@ -311,15 +317,17 @@ function buildApexCardConfig(cfg) {
   if (showSun) {
     series.push(
       {
+        entity: cfg.entity,
         name: 'Sun elevation (history)',
         yaxis_id: 'sun',
-        data: mapPoints(apex.sun_history),
+        data_generator: 'return (entity.attributes.apex_series?.sun_history || []).map(p => [new Date(p.x).getTime(), p.y]);',
       },
       {
+        entity: cfg.entity,
         name: 'Sun elevation (forecast)',
         yaxis_id: 'sun',
         stroke_dash: 6,
-        data: mapPoints(apex.sun_forecast),
+        data_generator: 'return (entity.attributes.apex_series?.sun_forecast || []).map(p => [new Date(p.x).getTime(), p.y]);',
       },
     );
   }
@@ -463,4 +471,10 @@ window.customCards.push({
   name: 'Battery Telemetry',
   preview: true,
   description: 'Chart card for battery telemetry history + forecast powered by the Battery Telemetry Forecast integration.',
+});
+window.customCards.push({
+  type: 'node-energy-card',
+  name: 'Battery Telemetry (Legacy Alias)',
+  preview: false,
+  description: 'Legacy alias for Battery Telemetry card.',
 });
