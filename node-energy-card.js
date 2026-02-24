@@ -227,6 +227,10 @@ function buildApexCardConfig(cfg) {
   const showClear = !!cfg.show_clear;
   const apex = cfg.apex_series || {};
   const vals = (arr) => (arr || []).map((p) => Number(p.y)).filter((v) => Number.isFinite(v));
+  const mapPoints = (arr) =>
+    (arr || [])
+      .map((p) => [new Date(p.x).getTime(), Number(p.y)])
+      .filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]));
   const range = (arr, fallbackMin, fallbackMax, pad = 0.12) => {
     const ys = vals(arr);
     if (!ys.length) return [fallbackMin, fallbackMax];
@@ -268,13 +272,13 @@ function buildApexCardConfig(cfg) {
       entity,
       name: 'SOC (history)',
       yaxis_id: 'soc',
-      data_generator: 'return (entity.attributes.apex_series?.soc_actual || []).map(p => [new Date(p.x).getTime(), p.y]);',
+      data: mapPoints(apex.soc_actual),
     },
     {
       entity,
       name: 'SOC (projection weather)',
       yaxis_id: 'soc',
-      data_generator: 'return (entity.attributes.apex_series?.soc_projection_weather || []).map(p => [new Date(p.x).getTime(), p.y]);',
+      data: mapPoints(apex.soc_projection_weather),
     },
   ];
 
@@ -284,7 +288,7 @@ function buildApexCardConfig(cfg) {
       name: 'SOC (projection clear sky)',
       yaxis_id: 'soc',
       stroke_dash: 6,
-      data_generator: 'return (entity.attributes.apex_series?.soc_projection_clear || []).map(p => [new Date(p.x).getTime(), p.y]);',
+      data: mapPoints(apex.soc_projection_clear),
     });
   }
 
@@ -294,19 +298,19 @@ function buildApexCardConfig(cfg) {
         entity,
         name: 'Net W (observed)',
         yaxis_id: 'power',
-        data_generator: 'return (entity.attributes.apex_series?.power_observed || []).map(p => [new Date(p.x).getTime(), p.y]);',
+        data: mapPoints(apex.power_observed),
       },
       {
         entity,
         name: 'Net W (modeled)',
         yaxis_id: 'power',
-        data_generator: 'return (entity.attributes.apex_series?.power_modeled || []).map(p => [new Date(p.x).getTime(), p.y]);',
+        data: mapPoints(apex.power_modeled),
       },
       {
         entity,
         name: 'Load W',
         yaxis_id: 'power',
-        data_generator: 'return (entity.attributes.apex_series?.power_consumption || []).map(p => [new Date(p.x).getTime(), p.y]);',
+        data: mapPoints(apex.power_consumption),
       },
     );
   }
@@ -317,14 +321,14 @@ function buildApexCardConfig(cfg) {
         entity,
         name: 'Sun elevation (history)',
         yaxis_id: 'sun',
-        data_generator: 'return (entity.attributes.apex_series?.sun_history || []).map(p => [new Date(p.x).getTime(), p.y]);',
+        data: mapPoints(apex.sun_history),
       },
       {
         entity,
         name: 'Sun elevation (forecast)',
         yaxis_id: 'sun',
         stroke_dash: 6,
-        data_generator: 'return (entity.attributes.apex_series?.sun_forecast || []).map(p => [new Date(p.x).getTime(), p.y]);',
+        data: mapPoints(apex.sun_forecast),
       },
     );
   }
