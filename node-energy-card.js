@@ -465,16 +465,27 @@ if (!customElements.get('node-energy-setup-card-editor')) {
   customElements.define('node-energy-setup-card-editor', BatteryTelemetryCardEditor);
 }
 
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: 'battery-telemetry-card',
-  name: 'Battery Telemetry',
-  preview: true,
-  description: 'Chart card for battery telemetry history + forecast powered by the Battery Telemetry Forecast integration.',
-});
-window.customCards.push({
-  type: 'node-energy-card',
-  name: 'Battery Telemetry (Legacy Alias)',
-  preview: false,
-  description: 'Legacy alias for Battery Telemetry card.',
-});
+function registerCustomCardsMeta() {
+  window.customCards = window.customCards || [];
+  const upsert = (meta) => {
+    if (!window.customCards.some((c) => c && c.type === meta.type)) {
+      window.customCards.push(meta);
+    }
+  };
+  upsert({
+    type: 'battery-telemetry-card',
+    name: 'Battery Telemetry',
+    preview: true,
+    description: 'Chart card for battery telemetry history + forecast powered by the Battery Telemetry Forecast integration.',
+  });
+  upsert({
+    type: 'node-energy-card',
+    name: 'Battery Telemetry (Legacy Alias)',
+    preview: false,
+    description: 'Legacy alias for Battery Telemetry card.',
+  });
+}
+
+registerCustomCardsMeta();
+setTimeout(registerCustomCardsMeta, 1000);
+setTimeout(registerCustomCardsMeta, 3000);
