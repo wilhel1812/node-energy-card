@@ -275,19 +275,24 @@ function buildMainApexCardConfig(cfg, apex) {
   const series = [
     {
       entity: cfg.entity,
-      name: 'SOC (history)',
+      name: 'SOC',
       yaxis_id: 'soc',
       color: 'var(--primary-color)',
       extend_to: false,
-      data_generator: 'return (entity.attributes.apex_series?.soc_actual || []).map(p => [new Date(p.x).getTime(), p.y]);',
-    },
-    {
-      entity: cfg.entity,
-      name: 'SOC (projection weather)',
-      yaxis_id: 'soc',
-      color: 'var(--primary-color)',
-      extend_to: false,
-      data_generator: 'return (entity.attributes.apex_series?.soc_projection_weather || []).map(p => [new Date(p.x).getTime(), p.y]);',
+      data_generator: `
+        const a = entity.attributes.apex_series || {};
+        const pts = (a.soc_actual || []).concat(a.soc_projection_weather || []);
+        const out = [];
+        const seen = new Set();
+        for (const p of pts) {
+          const t = new Date(p.x).getTime();
+          if (!Number.isFinite(t) || seen.has(t)) continue;
+          seen.add(t);
+          out.push([t, p.y]);
+        }
+        out.sort((x, y) => x[0] - y[0]);
+        return out;
+      `,
     },
   ];
 
@@ -298,29 +303,44 @@ function buildMainApexCardConfig(cfg, apex) {
       yaxis_id: 'soc',
       stroke_dash: 6,
       extend_to: false,
-      data_generator: 'return (entity.attributes.apex_series?.soc_projection_clear || []).map(p => [new Date(p.x).getTime(), p.y]);',
+      data_generator: `
+        const a = entity.attributes.apex_series || {};
+        const pts = (a.soc_actual || []).concat(a.soc_projection_clear || []);
+        const out = [];
+        const seen = new Set();
+        for (const p of pts) {
+          const t = new Date(p.x).getTime();
+          if (!Number.isFinite(t) || seen.has(t)) continue;
+          seen.add(t);
+          out.push([t, p.y]);
+        }
+        out.sort((x, y) => x[0] - y[0]);
+        return out;
+      `,
     });
   }
   if (cfg.show_sun) {
-    series.push(
-      {
-        entity: cfg.entity,
-        name: 'Sun elevation (history)',
-        yaxis_id: 'sun',
-        color: 'var(--warning-color)',
-        extend_to: false,
-        data_generator: 'return (entity.attributes.apex_series?.sun_history || []).map(p => [new Date(p.x).getTime(), p.y]);',
-      },
-      {
-        entity: cfg.entity,
-        name: 'Sun elevation (forecast)',
-        yaxis_id: 'sun',
-        color: 'var(--warning-color)',
-        stroke_dash: 6,
-        extend_to: false,
-        data_generator: 'return (entity.attributes.apex_series?.sun_forecast || []).map(p => [new Date(p.x).getTime(), p.y]);',
-      },
-    );
+    series.push({
+      entity: cfg.entity,
+      name: 'Sun elevation',
+      yaxis_id: 'sun',
+      color: 'var(--warning-color)',
+      extend_to: false,
+      data_generator: `
+        const a = entity.attributes.apex_series || {};
+        const pts = (a.sun_history || []).concat(a.sun_forecast || []);
+        const out = [];
+        const seen = new Set();
+        for (const p of pts) {
+          const t = new Date(p.x).getTime();
+          if (!Number.isFinite(t) || seen.has(t)) continue;
+          seen.add(t);
+          out.push([t, p.y]);
+        }
+        out.sort((x, y) => x[0] - y[0]);
+        return out;
+      `,
+    });
   }
 
   return {
