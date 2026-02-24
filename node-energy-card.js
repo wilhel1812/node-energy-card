@@ -28,7 +28,7 @@ class BatteryTelemetryCard extends HTMLElement {
     return 8;
   }
 
-  _render() {
+  async _render() {
     if (!this._config || !this._hass) return;
     const valid = getValidEntities(this._hass);
     const entity = this._config.entity;
@@ -50,14 +50,14 @@ class BatteryTelemetryCard extends HTMLElement {
     const apex = (st && st.attributes && st.attributes.apex_series) || {};
     const apexConfig = buildApexCardConfig(this._config, apex);
 
-    if (!this._inner) {
-      this._inner = document.createElement('hui-element');
-      this.innerHTML = '';
-      this.appendChild(this._inner);
-    }
-
     try {
-      this._inner.setConfig(apexConfig);
+      if (!this._inner || typeof this._inner.setConfig !== 'function') {
+        this._inner = await createCardElement(this._hass, apexConfig);
+        this.innerHTML = '';
+        this.appendChild(this._inner);
+      } else {
+        this._inner.setConfig(apexConfig);
+      }
       this._inner.hass = this._hass;
     } catch (err) {
       this.innerHTML = `
@@ -68,6 +68,22 @@ class BatteryTelemetryCard extends HTMLElement {
       this._inner = null;
     }
   }
+}
+
+async function createCardElement(hass, config) {
+  if (hass?.helpers?.createCardElement) {
+    return hass.helpers.createCardElement(config);
+  }
+  if (window.loadCardHelpers) {
+    const helpers = await window.loadCardHelpers();
+    return helpers.createCardElement(config);
+  }
+  const fallback = document.createElement('apexcharts-card');
+  if (typeof fallback.setConfig !== 'function') {
+    throw new Error('ApexCharts card not loaded. Install/refresh ApexCharts Card.');
+  }
+  fallback.setConfig(config);
+  return fallback;
 }
 
 class BatteryTelemetryCardEditor extends HTMLElement {
