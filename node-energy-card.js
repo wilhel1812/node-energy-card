@@ -228,8 +228,10 @@ function buildMainApexCardConfig(cfg, apex) {
     return [mn - span * pad, mx + span * pad];
   };
 
-  const socMin = 0;
-  const socMax = 100;
+  const socSource = (apex.soc_actual || []).concat(apex.soc_projection_weather || [], apex.soc_projection_clear || []);
+  const [socMinRaw, socMaxRaw] = range(socSource, 0, 100, 0.08);
+  const socMin = Math.max(0, socMinRaw);
+  const socMax = Math.min(100, socMaxRaw);
 
   const sunSource = (apex.sun_history || []).concat(apex.sun_forecast || []);
   const [sunMin, sunMax] = range(sunSource, -90, 90, 0.08);
@@ -245,6 +247,15 @@ function buildMainApexCardConfig(cfg, apex) {
       title: { text: 'SOC %' },
     },
   ];
+  const cardYaxis = [
+    {
+      id: 'soc',
+      min: socMin,
+      max: socMax,
+      decimals: 0,
+      opposite: false,
+    },
+  ];
   if (cfg.show_sun) {
     yaxis.push({
       id: 'sun',
@@ -253,6 +264,13 @@ function buildMainApexCardConfig(cfg, apex) {
       max: sunMax,
       decimalsInFloat: 0,
       title: { text: 'Sun elev °' },
+    });
+    cardYaxis.push({
+      id: 'sun',
+      min: sunMin,
+      max: sunMax,
+      decimals: 0,
+      opposite: true,
     });
   }
 
@@ -332,6 +350,7 @@ function buildMainApexCardConfig(cfg, apex) {
     header: { show: true, title: cfg.title },
     update_interval: '5min',
     ...(spanWindow || {}),
+    yaxis: cardYaxis,
     now: { show: true, label: 'Now' },
     apex_config: {
       chart: {
@@ -395,6 +414,15 @@ function buildPowerApexCardConfig(cfg, apex) {
     header: { show: false },
     update_interval: '5min',
     ...(spanWindow || {}),
+    yaxis: [
+      {
+        id: 'power',
+        min: powMin,
+        max: powMax,
+        decimals: 1,
+        opposite: false,
+      },
+    ],
     now: { show: true, label: 'Now' },
     apex_config: {
       chart: {
