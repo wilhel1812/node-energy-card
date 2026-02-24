@@ -194,7 +194,7 @@ class BatteryTelemetryCardEditor extends HTMLElement {
   _render() {
     if (!this._hass || !this._config) return;
     const valid = getValidEntities(this._hass);
-    const options = valid.length ? valid : getAllSensorEntities(this._hass);
+    const options = valid.length ? valid : getCandidateTelemetryEntities(this._hass, this._config.entity);
 
     if (this._config.entity && !options.includes(this._config.entity)) {
       this._config.entity = '';
@@ -731,6 +731,24 @@ function getAllSensorEntities(hass) {
   return Object.keys((hass && hass.states) || {})
     .filter((eid) => eid.startsWith('sensor.'))
     .sort();
+}
+
+function getCandidateTelemetryEntities(hass, selectedEntity = '') {
+  const states = (hass && hass.states) || {};
+  const out = new Set();
+  if (selectedEntity && states[selectedEntity]) {
+    out.add(selectedEntity);
+  }
+  for (const [eid, st] of Object.entries(states)) {
+    if (!eid.startsWith('sensor.') || !st || !st.attributes) continue;
+    const fn = String(st.attributes.friendly_name || '').toLowerCase();
+    const hasTelemetryName = fn.includes('battery telemetry forecast') || fn.includes('battery telemetry');
+    const hasDomainHint = eid.includes('battery_telemetry') || eid.includes('node_energy');
+    if (hasTelemetryName || hasDomainHint) {
+      out.add(eid);
+    }
+  }
+  return Array.from(out).sort();
 }
 
 function pickDefaultEntity(hass) {
