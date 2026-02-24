@@ -42,8 +42,9 @@ class BatteryTelemetryCard extends HTMLElement {
     if (!this._config || !this._hass) return;
     const valid = getValidEntities(this._hass);
     const entity = this._config.entity;
+    const hasEntityState = !!(entity && this._hass.states[entity]);
 
-    if (!entity || !valid.includes(entity)) {
+    if (!entity || (!valid.includes(entity) && !hasEntityState)) {
       this.innerHTML = `
         <ha-card header="${escapeHtml(this._config.title)}">
           <div class="card-content">
@@ -429,7 +430,11 @@ function buildPowerApexCardConfig(cfg, apex) {
 
 function getValidEntities(hass) {
   return Object.entries((hass && hass.states) || {})
-    .filter(([eid, st]) => eid.startsWith('sensor.') && !!(st && st.attributes && st.attributes.apex_series))
+    .filter(([eid, st]) => {
+      if (!eid.startsWith('sensor.') || !st || !st.attributes) return false;
+      const a = st.attributes;
+      return !!(a.apex_series || a.history_soc || a.forecast || a.model || a.meta);
+    })
     .map(([eid]) => eid)
     .sort();
 }
