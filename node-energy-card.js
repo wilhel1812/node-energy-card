@@ -296,6 +296,49 @@ function buildMainApexCardConfig(cfg, apex) {
         return out;
       `,
     },
+    {
+      entity: cfg.entity,
+      name: 'SOC (no sun)',
+      yaxis_id: 'soc',
+      color: 'var(--error-color)',
+      stroke_dash: 4,
+      extend_to: false,
+      data_generator: `
+        const a = entity.attributes || {};
+        const ap = a.apex_series || {};
+        const fc = a.forecast || {};
+        const m = a.meta || {};
+        const model = a.model || {};
+        const times = fc.times || [];
+        if (!times.length) return [];
+
+        const cells = Number(m.cells_current || 0);
+        const mah = Number(m.cell_mah || 0);
+        const cv = Number(m.cell_v || 0);
+        const capWh = cells > 0 && mah > 0 && cv > 0 ? cells * (mah / 1000) * cv : 0;
+        if (!(capWh > 0)) return [];
+
+        const load = Number(model.load_w || 0);
+        const base = ap.soc_projection_weather || [];
+        let soc = base.length ? Number(base[0].y) : Number((fc.latest_soc ?? 0));
+        if (!Number.isFinite(soc)) soc = 0;
+
+        const out = [];
+        let prevT = null;
+        for (const x of times) {
+          const t = new Date(x).getTime();
+          if (!Number.isFinite(t)) continue;
+          if (prevT !== null) {
+            const dtH = Math.max(0, (t - prevT) / 3600000);
+            soc += ((-load) * dtH / capWh) * 100;
+            soc = Math.max(0, Math.min(100, soc));
+          }
+          out.push([t, soc]);
+          prevT = t;
+        }
+        return out;
+      `,
+    },
   ];
 
   if (cfg.show_clear) {
