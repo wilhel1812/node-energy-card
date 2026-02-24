@@ -73,14 +73,40 @@ class BatteryTelemetryCard extends HTMLElement {
     const st = stateObj;
     const apex = (st && st.attributes && st.attributes.apex_series) || {};
     const cardConfig = buildCardConfig(this._config, apex);
+    const noSunLabel = buildNoSunRuntimeLabel(st);
 
     try {
       if (!this._inner || typeof this._inner.setConfig !== 'function') {
         this._inner = await createCardElement(this._hass, cardConfig);
-        this.innerHTML = '';
-        this.appendChild(this._inner);
+        this.innerHTML = `
+          <style>
+            .bt-wrap { display: grid; gap: 8px; }
+            .bt-metric {
+              padding: 0 8px;
+              color: var(--secondary-text-color);
+              font-size: 0.92rem;
+              line-height: 1.2;
+            }
+            .bt-metric b {
+              color: var(--primary-text-color);
+              font-weight: 600;
+            }
+          </style>
+          <div class="bt-wrap">
+            <div class="bt-metric" id="bt-no-sun"></div>
+            <div id="bt-chart"></div>
+          </div>
+        `;
+        const chartHost = this.querySelector('#bt-chart');
+        if (chartHost) {
+          chartHost.appendChild(this._inner);
+        }
       } else {
         this._inner.setConfig(cardConfig);
+      }
+      const metric = this.querySelector('#bt-no-sun');
+      if (metric) {
+        metric.innerHTML = noSunLabel;
       }
       this._inner.hass = this._hass;
     } catch (err) {
@@ -92,6 +118,37 @@ class BatteryTelemetryCard extends HTMLElement {
       this._inner = null;
     }
   }
+}
+
+function buildNoSunRuntimeLabel(st) {
+  const attrs = (st && st.attributes) || {};
+  const ap = attrs.apex_series || {};
+  const meta = attrs.meta || {};
+  const model = attrs.model || {};
+
+  const cells = Number(meta.cells_current || 0);
+  const cellMah = Number(meta.cell_mah || 0);
+  const cellV = Number(meta.cell_v || 0);
+  const loadW = Number(model.load_w || 0);
+  const capWh = cells > 0 && cellMah > 0 && cellV > 0 ? cells * (cellMah / 1000) * cellV : 0;
+
+  let soc = Number(st && st.state);
+  const socNowArr = ap.soc_projection_weather || [];
+  if (Number.isFinite(Number(socNowArr[0] && socNowArr[0].y))) {
+    soc = Number(socNowArr[0].y);
+  }
+
+  if (!(capWh > 0) || !(loadW > 0) || !Number.isFinite(soc)) {
+    return '<b>No-sun runtime:</b> n/a';
+  }
+
+  const remainWh = Math.max(0, Math.min(100, soc)) / 100 * capWh;
+  const days = remainWh / loadW / 24;
+  if (!Number.isFinite(days)) {
+    return '<b>No-sun runtime:</b> n/a';
+  }
+  const daysTxt = days >= 10 ? days.toFixed(0) : days.toFixed(1);
+  return `<b>No-sun runtime:</b> ${daysTxt} days`;
 }
 
 async function createCardElement(hass, config) {
