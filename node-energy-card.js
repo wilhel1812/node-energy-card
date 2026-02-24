@@ -250,6 +250,7 @@ function buildMainApexCardConfig(cfg, apex) {
   const sunSource = (apex.sun_history || []).concat(apex.sun_forecast || []);
   const [sunMin, sunMax] = range(sunSource, -90, 90, 0.08);
   const nowTs = Number.isFinite(Date.parse(apex.now || '')) ? Date.parse(apex.now) : null;
+  const xWindow = computeXWindow(apex);
 
   const yaxis = [
     {
@@ -350,6 +351,7 @@ function buildMainApexCardConfig(cfg, apex) {
       tooltip: { shared: true, intersect: false },
       xaxis: {
         type: 'datetime',
+        ...(xWindow || {}),
         labels: { datetimeUTC: false, format: 'dd MMM HH:mm' },
       },
       stroke: { curve: 'smooth' },
@@ -375,6 +377,7 @@ function buildPowerApexCardConfig(cfg, apex) {
   };
 
   const nowTs = Number.isFinite(Date.parse(apex.now || '')) ? Date.parse(apex.now) : null;
+  const xWindow = computeXWindow(apex);
   const source = (apex.power_observed || []).concat(apex.power_modeled || [], apex.power_consumption || []);
   const [powMin, powMax] = range(source, -1, 1);
 
@@ -407,6 +410,7 @@ function buildPowerApexCardConfig(cfg, apex) {
       tooltip: { shared: true, intersect: false },
       xaxis: {
         type: 'datetime',
+        ...(xWindow || {}),
         labels: { datetimeUTC: false, format: 'dd MMM HH:mm' },
       },
       stroke: { curve: 'smooth' },
@@ -441,6 +445,30 @@ function buildPowerApexCardConfig(cfg, apex) {
       },
     ],
   };
+}
+
+function computeXWindow(apex) {
+  const keys = [
+    'soc_actual',
+    'soc_projection_weather',
+    'soc_projection_clear',
+    'sun_history',
+    'sun_forecast',
+    'power_observed',
+    'power_modeled',
+    'power_consumption',
+  ];
+  const ts = [];
+  for (const k of keys) {
+    const arr = apex && apex[k];
+    if (!Array.isArray(arr)) continue;
+    for (const p of arr) {
+      const t = Date.parse((p && p.x) || '');
+      if (Number.isFinite(t)) ts.push(t);
+    }
+  }
+  if (!ts.length) return null;
+  return { min: Math.min(...ts), max: Math.max(...ts) };
 }
 
 function getValidEntities(hass) {
