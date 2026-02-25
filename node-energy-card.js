@@ -87,6 +87,7 @@ class BatteryTelemetryCard extends HTMLElement {
     const apex = (st && st.attributes && st.attributes.apex_series) || {};
     const cardConfig = buildCardConfig(this._config, apex);
     const noSunLabel = buildNoSunRuntimeLabel(st);
+    const fullChargeLabel = buildFullChargeLabel(st);
 
     try {
       if (!this._inner || typeof this._inner.setConfig !== 'function') {
@@ -107,6 +108,7 @@ class BatteryTelemetryCard extends HTMLElement {
           </style>
           <div class="bt-wrap">
             <div class="bt-metric" id="bt-no-sun"></div>
+            <div class="bt-metric" id="bt-full-charge"></div>
             <div id="bt-chart"></div>
           </div>
         `;
@@ -120,6 +122,10 @@ class BatteryTelemetryCard extends HTMLElement {
       const metric = this.querySelector('#bt-no-sun');
       if (metric) {
         metric.innerHTML = noSunLabel;
+      }
+      const metricFull = this.querySelector('#bt-full-charge');
+      if (metricFull) {
+        metricFull.innerHTML = fullChargeLabel;
       }
       this._inner.hass = this._hass;
     } catch (err) {
@@ -162,6 +168,19 @@ function buildNoSunRuntimeLabel(st) {
   }
   const daysTxt = days >= 10 ? days.toFixed(0) : days.toFixed(1);
   return `<b>No-sun runtime:</b> ${daysTxt} days`;
+}
+
+function buildFullChargeLabel(st) {
+  const attrs = (st && st.attributes) || {};
+  const etaH = Number(attrs.full_charge_eta_hours);
+  const atRaw = attrs.full_charge_at;
+  if (!Number.isFinite(etaH) && !atRaw) {
+    return '<b>Full charge ETA:</b> not within horizon';
+  }
+  const etaTxt = Number.isFinite(etaH) ? (etaH >= 48 ? `${(etaH / 24).toFixed(1)} days` : `${etaH.toFixed(1)} h`) : 'n/a';
+  const at = atRaw ? new Date(atRaw) : null;
+  const atTxt = at && Number.isFinite(at.getTime()) ? at.toLocaleString() : 'n/a';
+  return `<b>Full charge ETA:</b> ${etaTxt} (${atTxt})`;
 }
 
 async function createCardElement(hass, config) {
