@@ -180,7 +180,7 @@ function buildNoSunRuntimeLabel(st) {
 
 function buildFullChargeLabel(st) {
   const attrs = (st && st.attributes) || {};
-  const mode = String(attrs.primary_eta_mode || '').toLowerCase();
+  const modeRaw = String(attrs.primary_eta_mode || '').toLowerCase();
   const fullEtaH = Number(attrs.full_charge_eta_hours);
   const fullAtRaw = attrs.full_charge_at;
   const runEtaH = Number(attrs.runtime_eta_hours);
@@ -192,25 +192,37 @@ function buildFullChargeLabel(st) {
   const slopeInfo = (() => {
     if (weatherSoc.length < 2) return null;
     const first = weatherSoc[0];
-    const last = weatherSoc[weatherSoc.length - 1];
     const y0 = Number(first && first.y);
-    const y1 = Number(last && last.y);
     const t0 = Date.parse((first && first.x) || '');
-    const t1 = Date.parse((last && last.x) || '');
-    if (!Number.isFinite(y0) || !Number.isFinite(y1) || !Number.isFinite(t0) || !Number.isFinite(t1) || t1 <= t0) {
+    if (!Number.isFinite(y0) || !Number.isFinite(t0)) {
       return null;
     }
-    const slope = (y1 - y0) / ((t1 - t0) / 3600000);
-    return { y0, y1, t0, t1, slope };
+    let bestDelta = 0;
+    let bestHours = 0;
+    for (let i = 1; i < weatherSoc.length; i += 1) {
+      const p = weatherSoc[i];
+      const yi = Number(p && p.y);
+      const ti = Date.parse((p && p.x) || '');
+      if (!Number.isFinite(yi) || !Number.isFinite(ti) || ti <= t0) continue;
+      const h = (ti - t0) / 3600000;
+      const d = yi - y0;
+      if (Math.abs(d) > Math.abs(bestDelta)) {
+        bestDelta = d;
+        bestHours = h;
+      }
+    }
+    if (!(bestHours > 0)) return null;
+    const slope = bestDelta / bestHours;
+    return { y0, slope };
   })();
 
   const inferredMode = (() => {
     if (!slopeInfo) return 'none';
-    if (slopeInfo.slope > 0.001) return 'charge';
-    if (slopeInfo.slope < -0.001) return 'runtime';
+    if (slopeInfo.slope > 1e-4) return 'charge';
+    if (slopeInfo.slope < -1e-4) return 'runtime';
     return 'none';
   })();
-  const activeMode = mode || inferredMode;
+  const activeMode = (modeRaw === 'charge' || modeRaw === 'runtime') ? modeRaw : inferredMode;
 
   const fmt = (hours, atRaw, label, noneText) => {
     if (!Number.isFinite(hours) && !atRaw) {
@@ -225,7 +237,7 @@ function buildFullChargeLabel(st) {
   if (activeMode === 'runtime') {
     let h = runEtaH;
     let at = runAtRaw;
-    if (!Number.isFinite(h) && !at && slopeInfo && slopeInfo.slope < -0.001 && slopeInfo.y0 > 0) {
+    if (!Number.isFinite(h) && !at && slopeInfo && slopeInfo.slope < -1e-4 && slopeInfo.y0 > 0) {
       h = slopeInfo.y0 / (-slopeInfo.slope);
       if (Number.isFinite(h) && h >= 0) at = new Date(nowTs + h * 3600000).toISOString();
     }
@@ -234,7 +246,7 @@ function buildFullChargeLabel(st) {
   if (activeMode === 'charge') {
     let h = fullEtaH;
     let at = fullAtRaw;
-    if (!Number.isFinite(h) && !at && slopeInfo && slopeInfo.slope > 0.001 && slopeInfo.y0 < 100) {
+    if (!Number.isFinite(h) && !at && slopeInfo && slopeInfo.slope > 1e-4 && slopeInfo.y0 < 100) {
       h = (100 - slopeInfo.y0) / slopeInfo.slope;
       if (Number.isFinite(h) && h >= 0) at = new Date(nowTs + h * 3600000).toISOString();
     }
