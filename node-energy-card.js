@@ -187,20 +187,27 @@ function buildFullChargeLabel(st) {
   const runAtRaw = attrs.runtime_at;
   const ap = attrs.apex_series || {};
   const weatherSoc = Array.isArray(ap.soc_projection_weather) ? ap.soc_projection_weather : [];
+  const nowTs = Date.now();
 
-  const inferredMode = (() => {
-    if (weatherSoc.length < 2) return 'none';
+  const slopeInfo = (() => {
+    if (weatherSoc.length < 2) return null;
     const first = weatherSoc[0];
     const last = weatherSoc[weatherSoc.length - 1];
     const y0 = Number(first && first.y);
     const y1 = Number(last && last.y);
-    if (!Number.isFinite(y0) || !Number.isFinite(y1)) return 'none';
     const t0 = Date.parse((first && first.x) || '');
     const t1 = Date.parse((last && last.x) || '');
-    if (!Number.isFinite(t0) || !Number.isFinite(t1) || t1 <= t0) return 'none';
+    if (!Number.isFinite(y0) || !Number.isFinite(y1) || !Number.isFinite(t0) || !Number.isFinite(t1) || t1 <= t0) {
+      return null;
+    }
     const slope = (y1 - y0) / ((t1 - t0) / 3600000);
-    if (slope > 0.01) return 'charge';
-    if (slope < -0.01) return 'runtime';
+    return { y0, y1, t0, t1, slope };
+  })();
+
+  const inferredMode = (() => {
+    if (!slopeInfo) return 'none';
+    if (slopeInfo.slope > 0.001) return 'charge';
+    if (slopeInfo.slope < -0.001) return 'runtime';
     return 'none';
   })();
   const activeMode = mode || inferredMode;
@@ -216,10 +223,22 @@ function buildFullChargeLabel(st) {
   };
 
   if (activeMode === 'runtime') {
-    return fmt(runEtaH, runAtRaw, 'Negative charging trend, estimated runtime', 'depletion trend detected');
+    let h = runEtaH;
+    let at = runAtRaw;
+    if (!Number.isFinite(h) && !at && slopeInfo && slopeInfo.slope < -0.001 && slopeInfo.y0 > 0) {
+      h = slopeInfo.y0 / (-slopeInfo.slope);
+      if (Number.isFinite(h) && h >= 0) at = new Date(nowTs + h * 3600000).toISOString();
+    }
+    return fmt(h, at, 'Negative charging trend, estimated runtime', 'unable to estimate runtime');
   }
   if (activeMode === 'charge') {
-    return fmt(fullEtaH, fullAtRaw, 'Positive charging trend, full charge ETA', 'not within horizon');
+    let h = fullEtaH;
+    let at = fullAtRaw;
+    if (!Number.isFinite(h) && !at && slopeInfo && slopeInfo.slope > 0.001 && slopeInfo.y0 < 100) {
+      h = (100 - slopeInfo.y0) / slopeInfo.slope;
+      if (Number.isFinite(h) && h >= 0) at = new Date(nowTs + h * 3600000).toISOString();
+    }
+    return fmt(h, at, 'Positive charging trend, full charge ETA', 'unable to estimate full charge');
   }
   if (Number.isFinite(runEtaH) || runAtRaw) {
     return fmt(runEtaH, runAtRaw, 'Negative charging trend, estimated runtime', 'n/a');
