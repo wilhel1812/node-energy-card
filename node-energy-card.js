@@ -89,7 +89,11 @@ class BatteryTelemetryCard extends HTMLElement {
 
     const st = stateObj;
     const apex = (st && st.attributes && st.attributes.apex_series) || {};
-    const cardConfig = buildCardConfig(this._config, apex);
+    const effectiveCfg = {
+      ...this._config,
+      title: buildDisplayTitle(this._config, st, entity),
+    };
+    const cardConfig = buildCardConfig(effectiveCfg, apex);
     const noSunLabel = buildNoSunRuntimeLabel(st);
     const fullChargeLabel = buildFullChargeLabel(st);
 
@@ -339,6 +343,15 @@ function normalizeConfig(config) {
     show_clear: false,
     ...(config || {}),
   };
+}
+
+function buildDisplayTitle(cfg, st, entityId) {
+  const baseTitle = String((cfg && cfg.title) || '').trim();
+  const friendly = String((st && st.attributes && st.attributes.friendly_name) || entityId || '').trim();
+  if (!friendly) return baseTitle || 'Battery Telemetry';
+  if (!baseTitle) return friendly;
+  if (baseTitle.toLowerCase() === friendly.toLowerCase()) return friendly;
+  return `${baseTitle} - ${friendly}`;
 }
 
 function buildCardConfig(cfg, apex) {
