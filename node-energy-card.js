@@ -1,7 +1,11 @@
 class BatteryTelemetryCard extends HTMLElement {
   static getStubConfig(hass) {
+    const fallback = pickDefaultEntity(hass);
+    const fallbackState = fallback ? hass?.states?.[fallback] : null;
+    const fallbackBattery = fallbackState?.attributes?.meta?.battery_entity || '';
     return {
-      entity: pickDefaultEntity(hass),
+      entity: fallback,
+      battery_entity: fallbackBattery,
       title: 'Battery Telemetry',
       show_power: false,
       show_sun: false,
@@ -21,7 +25,7 @@ class BatteryTelemetryCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    const entity = this._config?.entity;
+    const entity = resolveConfiguredEntity(hass, this._config);
     const st = entity ? hass.states[entity] : null;
     const stamp = st ? `${st.last_updated}|${st.state}` : 'none';
     if (this._inner && stamp === this._lastStamp && this._lastConfigKey === this._configKey) {
@@ -40,7 +44,7 @@ class BatteryTelemetryCard extends HTMLElement {
   async _render() {
     if (!this._config || !this._hass) return;
     const valid = getValidEntities(this._hass);
-    const entity = this._config.entity;
+    const entity = resolveConfiguredEntity(this._hass, this._config);
     const hasEntityState = !!(entity && this._hass.states[entity]);
     const stateObj = hasEntityState ? this._hass.states[entity] : null;
     const hasApex = !!(stateObj && stateObj.attributes && stateObj.attributes.apex_series);
@@ -249,7 +253,11 @@ class BatteryTelemetryCardEditor extends HTMLElement {
         <div class="row">
           <label>Battery Telemetry sensor</label>
           <select id="entity">
-            ${options.map((eid) => `<option value="${escapeHtml(eid)}" ${eid === this._config.entity ? 'selected' : ''}>${escapeHtml(eid)}</option>`).join('')}
+            ${options.map((eid) => {
+              const st = this._hass.states[eid];
+              const fn = st?.attributes?.friendly_name || eid;
+              return `<option value="${escapeHtml(eid)}" ${eid === this._config.entity ? 'selected' : ''}>${escapeHtml(fn)} (${escapeHtml(eid)})</option>`;
+            }).join('')}
           </select>
         </div>
         <div class="checks">
@@ -261,7 +269,12 @@ class BatteryTelemetryCardEditor extends HTMLElement {
     `;
 
     this.querySelector('#title')?.addEventListener('change', (ev) => this._set({ title: ev.target.value }));
-    this.querySelector('#entity')?.addEventListener('change', (ev) => this._set({ entity: ev.target.value }));
+    this.querySelector('#entity')?.addEventListener('change', (ev) => {
+      const entity = ev.target.value;
+      const st = this._hass?.states?.[entity];
+      const batteryEntity = st?.attributes?.meta?.battery_entity || '';
+      this._set({ entity, battery_entity: batteryEntity });
+    });
     this.querySelector('#show_power')?.addEventListener('change', (ev) => this._set({ show_power: !!ev.target.checked }));
     this.querySelector('#show_sun')?.addEventListener('change', (ev) => this._set({ show_sun: !!ev.target.checked }));
     this.querySelector('#show_clear')?.addEventListener('change', (ev) => this._set({ show_clear: !!ev.target.checked }));
@@ -280,6 +293,7 @@ class BatteryTelemetryCardEditor extends HTMLElement {
 function normalizeConfig(config) {
   return {
     entity: '',
+    battery_entity: '',
     title: 'Battery Telemetry',
     show_power: false,
     show_sun: false,
@@ -780,6 +794,30 @@ function getCandidateTelemetryEntities(hass, selectedEntity = '') {
 function pickDefaultEntity(hass) {
   const valid = getValidEntities(hass);
   return valid[0] || '';
+}
+
+function resolveConfiguredEntity(hass, cfg) {
+  const states = (hass && hass.states) || {};
+  const preferred = cfg && cfg.entity;
+  const preferredState = preferred ? states[preferred] : null;
+  if (preferredState && preferredState.attributes && preferredState.attributes.apex_series) {
+    return preferred;
+  }
+
+  const batteryEntity = cfg && cfg.battery_entity;
+  if (batteryEntity) {
+    for (const [eid, st] of Object.entries(states)) {
+      if (!eid.startsWith('sensor.') || !st || !st.attributes) continue;
+      const a = st.attributes;
+      if (!a.apex_series) continue;
+      const meta = a.meta || {};
+      if (meta.battery_entity === batteryEntity) {
+        return eid;
+      }
+    }
+  }
+
+  return pickDefaultEntity(hass);
 }
 
 function escapeHtml(v) {
