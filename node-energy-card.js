@@ -241,7 +241,7 @@ function buildFullChargeLabel(st) {
       h = slopeInfo.y0 / (-slopeInfo.slope);
       if (Number.isFinite(h) && h >= 0) at = new Date(nowTs + h * 3600000).toISOString();
     }
-    return fmt(h, at, 'Negative charging trend, estimated runtime', 'unable to estimate runtime');
+    return fmt(h, at, 'Negative charging trend, extrapolated runtime ETA', 'trend detected, collecting more data');
   }
   if (activeMode === 'charge') {
     let h = fullEtaH;
@@ -250,7 +250,7 @@ function buildFullChargeLabel(st) {
       h = (100 - slopeInfo.y0) / slopeInfo.slope;
       if (Number.isFinite(h) && h >= 0) at = new Date(nowTs + h * 3600000).toISOString();
     }
-    return fmt(h, at, 'Positive charging trend, full charge ETA', 'unable to estimate full charge');
+    return fmt(h, at, 'Positive charging trend, extrapolated full charge ETA', 'trend detected, collecting more data');
   }
   if (Number.isFinite(runEtaH) || runAtRaw) {
     return fmt(runEtaH, runAtRaw, 'Negative charging trend, estimated runtime', 'n/a');
