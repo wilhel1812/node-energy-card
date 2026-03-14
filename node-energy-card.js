@@ -181,27 +181,49 @@ function buildFullChargeLabel(st) {
   const fullAtRaw = attrs.full_charge_at;
   const runEtaH = Number(attrs.runtime_eta_hours);
   const runAtRaw = attrs.runtime_at;
+  const ap = attrs.apex_series || {};
+  const weatherSoc = Array.isArray(ap.soc_projection_weather) ? ap.soc_projection_weather : [];
+
+  const inferredMode = (() => {
+    if (weatherSoc.length < 2) return 'none';
+    const first = weatherSoc[0];
+    const last = weatherSoc[weatherSoc.length - 1];
+    const y0 = Number(first && first.y);
+    const y1 = Number(last && last.y);
+    if (!Number.isFinite(y0) || !Number.isFinite(y1)) return 'none';
+    const t0 = Date.parse((first && first.x) || '');
+    const t1 = Date.parse((last && last.x) || '');
+    if (!Number.isFinite(t0) || !Number.isFinite(t1) || t1 <= t0) return 'none';
+    const slope = (y1 - y0) / ((t1 - t0) / 3600000);
+    if (slope > 0.01) return 'charge';
+    if (slope < -0.01) return 'runtime';
+    return 'none';
+  })();
+  const activeMode = mode || inferredMode;
 
   const fmt = (hours, atRaw, label, noneText) => {
     if (!Number.isFinite(hours) && !atRaw) {
       return `<b>${label}:</b> ${noneText}`;
     }
-    const etaTxt = Number.isFinite(hours) ? (hours >= 48 ? `${(hours / 24).toFixed(1)} days` : `${hours.toFixed(1)} h`) : 'n/a';
+    const etaTxt = Number.isFinite(hours) ? (hours >= 72 ? `${(hours / 24).toFixed(0)} days` : (hours >= 48 ? `${(hours / 24).toFixed(1)} days` : `${hours.toFixed(1)} h`)) : 'n/a';
     const at = atRaw ? new Date(atRaw) : null;
     const atTxt = at && Number.isFinite(at.getTime()) ? at.toLocaleString() : 'n/a';
     return `<b>${label}:</b> ${etaTxt} (${atTxt})`;
   };
 
-  if (mode === 'runtime') {
-    return fmt(runEtaH, runAtRaw, 'Runtime ETA', 'no depletion trend');
+  if (activeMode === 'runtime') {
+    return fmt(runEtaH, runAtRaw, 'Negative charging trend, estimated runtime', 'depletion trend detected');
   }
-  if (mode === 'charge') {
-    return fmt(fullEtaH, fullAtRaw, 'Full charge ETA', 'not within horizon');
+  if (activeMode === 'charge') {
+    return fmt(fullEtaH, fullAtRaw, 'Positive charging trend, full charge ETA', 'not within horizon');
   }
   if (Number.isFinite(runEtaH) || runAtRaw) {
-    return fmt(runEtaH, runAtRaw, 'Runtime ETA', 'n/a');
+    return fmt(runEtaH, runAtRaw, 'Negative charging trend, estimated runtime', 'n/a');
   }
-  return fmt(fullEtaH, fullAtRaw, 'Full charge ETA', 'n/a');
+  if (Number.isFinite(fullEtaH) || fullAtRaw) {
+    return fmt(fullEtaH, fullAtRaw, 'Positive charging trend, full charge ETA', 'n/a');
+  }
+  return '<b>Charging trend:</b> neutral (no clear runtime/full-charge ETA)';
 }
 
 async function createCardElement(hass, config) {
