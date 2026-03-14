@@ -176,15 +176,32 @@ function buildNoSunRuntimeLabel(st) {
 
 function buildFullChargeLabel(st) {
   const attrs = (st && st.attributes) || {};
-  const etaH = Number(attrs.full_charge_eta_hours);
-  const atRaw = attrs.full_charge_at;
-  if (!Number.isFinite(etaH) && !atRaw) {
-    return '<b>Full charge ETA:</b> not within horizon';
+  const mode = String(attrs.primary_eta_mode || '').toLowerCase();
+  const fullEtaH = Number(attrs.full_charge_eta_hours);
+  const fullAtRaw = attrs.full_charge_at;
+  const runEtaH = Number(attrs.runtime_eta_hours);
+  const runAtRaw = attrs.runtime_at;
+
+  const fmt = (hours, atRaw, label, noneText) => {
+    if (!Number.isFinite(hours) && !atRaw) {
+      return `<b>${label}:</b> ${noneText}`;
+    }
+    const etaTxt = Number.isFinite(hours) ? (hours >= 48 ? `${(hours / 24).toFixed(1)} days` : `${hours.toFixed(1)} h`) : 'n/a';
+    const at = atRaw ? new Date(atRaw) : null;
+    const atTxt = at && Number.isFinite(at.getTime()) ? at.toLocaleString() : 'n/a';
+    return `<b>${label}:</b> ${etaTxt} (${atTxt})`;
+  };
+
+  if (mode === 'runtime') {
+    return fmt(runEtaH, runAtRaw, 'Runtime ETA', 'no depletion trend');
   }
-  const etaTxt = Number.isFinite(etaH) ? (etaH >= 48 ? `${(etaH / 24).toFixed(1)} days` : `${etaH.toFixed(1)} h`) : 'n/a';
-  const at = atRaw ? new Date(atRaw) : null;
-  const atTxt = at && Number.isFinite(at.getTime()) ? at.toLocaleString() : 'n/a';
-  return `<b>Full charge ETA:</b> ${etaTxt} (${atTxt})`;
+  if (mode === 'charge') {
+    return fmt(fullEtaH, fullAtRaw, 'Full charge ETA', 'not within horizon');
+  }
+  if (Number.isFinite(runEtaH) || runAtRaw) {
+    return fmt(runEtaH, runAtRaw, 'Runtime ETA', 'n/a');
+  }
+  return fmt(fullEtaH, fullAtRaw, 'Full charge ETA', 'n/a');
 }
 
 async function createCardElement(hass, config) {
